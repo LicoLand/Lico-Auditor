@@ -99,6 +99,27 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
+    def test_operational_script_endpoint_urls_fail(self) -> None:
+        findings = scan_text("tools/scripts/deploy.sh", "curl https://$DEPLOY_HOST:8443/health")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "operational-endpoint-url")
+
+        findings = scan_text("scripts/probe.sh", "curl http://internal-admin:9000/health")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "operational-endpoint-url")
+
+        findings = scan_text("tools/scripts/probe.sh", "curl http://<host>:9000/health")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "operational-endpoint-url")
+
+        findings = scan_text("tools/server-scripts/probe.sh", "curl http://internal-admin:9000/health")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "operational-endpoint-url")
+
+    def test_allowed_operational_script_endpoint_urls_pass(self) -> None:
+        text = "curl http://localhost:3000/health && curl https://api.licolite.com/health"
+        self.assertEqual(scan_text("tools/scripts/probe.sh", text), [])
+
     def test_private_key_material_fails(self) -> None:
         findings = scan_text("key.pem", private_key_marker())
         self.assertEqual(len(findings), 1)

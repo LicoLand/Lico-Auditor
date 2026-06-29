@@ -20,7 +20,7 @@ def scan_text(relative_path: str, text: str, *, commit: str = "") -> list[Findin
     for rule in RULES:
         for match in rule.pattern.finditer(text):
             value = match.group(0)
-            if "<" in value and ">" in value:
+            if "<" in value and ">" in value and rule.rule_id != "operational-endpoint-url":
                 continue
             if rule.should_report is not None and not rule.should_report(value, relative_path):
                 continue

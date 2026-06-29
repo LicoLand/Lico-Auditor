@@ -131,6 +131,7 @@ DATABASE_CREDENTIAL_URL_PATTERN = re.compile(
     r"\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:\s/@]+:[^@\s]+@",
     re.IGNORECASE,
 )
+OPS_ENDPOINT_URL_PATTERN = re.compile(r"\b(?:https?|wss?)://[^\s`'\"),;]+", re.IGNORECASE)
 
 
 KNOWN_PRIVATE_MARKERS = [
@@ -217,6 +218,43 @@ def is_disallowed_domain(value: str, _relative_path: str) -> bool:
 
 def is_production_ssh_endpoint(value: str, _relative_path: str) -> bool:
     return not is_allowed_domain(host_from_endpoint(value))
+
+
+def is_operational_path(relative_path: str) -> bool:
+    normalized = relative_path.lower().replace("\\", "/")
+    parts = {part for part in normalized.split("/") if part}
+    return (
+        normalized.startswith(
+            (
+                ".github/workflows/",
+                "deploy/",
+                "deployment/",
+                "infra/",
+                "ops/",
+                "scripts/",
+                "tools/scripts/",
+            )
+        )
+        or "/deploy/" in normalized
+        or "/deployment/" in normalized
+        or "/infra/" in normalized
+        or "/ops/" in normalized
+        or "/scripts/" in normalized
+        or any(part.endswith("scripts") for part in parts)
+    )
+
+
+def is_operational_endpoint_url(value: str, relative_path: str) -> bool:
+    if not is_operational_path(relative_path):
+        return False
+    host = host_from_endpoint(value)
+    if is_allowed_domain(host):
+        return False
+    if re.fullmatch(LOCAL_OR_DOMAIN_HOST_PATTERN, host, re.IGNORECASE):
+        return False
+    if re.fullmatch(r"\d+(?:\.\d+){3}", host):
+        return False
+    return True
 
 
 def is_deployment_provider_resource_id(_value: str, relative_path: str) -> bool:
@@ -350,6 +388,14 @@ RULES = [
         re.compile(SSH_ENDPOINT_PATTERN, re.IGNORECASE),
         "admin-endpoint",
         is_production_ssh_endpoint,
+    ),
+    Rule(
+        "operational-endpoint-url",
+        "high-risk",
+        "Operational script, deployment, or CI endpoint URLs must use localhost or an allowed LicoLite domain.",
+        OPS_ENDPOINT_URL_PATTERN,
+        "network-location",
+        is_operational_endpoint_url,
     ),
     Rule(
         "provider-resource-id",
