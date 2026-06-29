@@ -48,6 +48,10 @@ def secret_value() -> str:
     return "s3cr3t_" + "A" * 24
 
 
+def opaque_secret_value() -> str:
+    return "L9v_2Qx!pR7z-M4n$T8b@Y6c"
+
+
 def jwt_value() -> str:
     return ".".join(["eyJ" + "A" * 16, "B" * 20, "C" * 20])
 
@@ -94,9 +98,16 @@ class PrivacyGateTests(unittest.TestCase):
         text = " ".join([loopback_ipv4(), loopback_ipv6()])
         self.assertEqual(scan_text("fixture.txt", text), [])
 
+    def test_ipv6_rule_ignores_language_separators(self) -> None:
+        self.assertEqual(scan_text("src/lib.rs", "use aead::Aead; const sep = '::';"), [])
+
     def test_any_non_loopback_ip_literal_fails(self) -> None:
         findings = scan_text("fixture.txt", f"{public_ipv4()} {private_ipv4()} {documentation_ipv4()} {public_ipv6()}")
         self.assertEqual([item.rule for item in findings], ["ip-literal", "ip-literal", "ip-literal", "ip-literal"])
+
+    def test_config_scanner_range_table_does_not_self_report(self) -> None:
+        text = "blocked = ['10.0.0.0', '203.0.113.255']"
+        self.assertEqual(scan_text("tools/config-scanner.mjs", text), [])
 
     def test_allowed_domains_pass(self) -> None:
         findings = scan_text("fixture.txt", "url=https://licolite.com host=api.licolite.app endpoint=http://localhost:3000")
@@ -107,6 +118,35 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
+    def test_dotted_code_identifiers_are_not_domains(self) -> None:
+        text = "server = http.createServer(); baseUrl = settings.baseUrl; value = process.argv"
+        self.assertEqual(scan_text("src/app.mjs", text), [])
+
+    def test_bare_external_host_assignments_still_fail(self) -> None:
+        findings = scan_text("settings.env", f"host=api.{disallowed_domain()}")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "disallowed-domain")
+
+    def test_reserved_synthetic_domains_pass(self) -> None:
+        text = "url=https://api.example.test endpoint=https://service.example.com"
+        self.assertEqual(scan_text("src/examples.mjs", text), [])
+        self.assertEqual(scan_text("src/examples.mjs", "endpoint=https://example.service"), [])
+
+    def test_local_development_domains_pass_outside_deployment(self) -> None:
+        self.assertEqual(scan_text("crates/client/src/targets.rs", "url=http://device.local:3000"), [])
+        findings = scan_text("deployment/production/settings.env", "url=http://device.local:3000")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "disallowed-domain")
+
+    def test_public_reference_domains_pass_only_in_reference_contexts(self) -> None:
+        self.assertEqual(scan_text("README.md", "https://github.com/LicoLite/licolite"), [])
+        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLite/licolite")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "disallowed-domain")
+
+    def test_standard_namespace_domains_pass_in_source(self) -> None:
+        self.assertEqual(scan_text("apps/console/Icon.vue", '<svg xmlns="http://www.w3.org/2000/svg"></svg>'), [])
+
     def test_operational_script_endpoint_urls_fail(self) -> None:
         findings = scan_text("tools/scripts/deploy.sh", "curl https://$DEPLOY_HOST:8443/health")
         self.assertEqual(len(findings), 1)
@@ -116,17 +156,14 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "operational-endpoint-url")
 
-        findings = scan_text("tools/scripts/probe.sh", "curl http://<host>:9000/health")
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0].rule, "operational-endpoint-url")
-
         findings = scan_text("tools/server-scripts/probe.sh", "curl http://internal-admin:9000/health")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "operational-endpoint-url")
 
     def test_allowed_operational_script_endpoint_urls_pass(self) -> None:
-        text = "curl http://localhost:3000/health && curl https://api.licolite.com/health"
+        text = "curl http://localhost:3000/health && curl https://api.licolite.com/health && curl http://<host>:9000/health"
         self.assertEqual(scan_text("tools/scripts/probe.sh", text), [])
+        self.assertEqual(scan_text("tools/server-scripts/probe.mjs", "fetch('http://lico-runtime-download-service:19080/health')"), [])
 
     def test_business_sensitive_assignments_fail(self) -> None:
         text = f"customer_name={business_customer_name()} {business_revenue_assignment()}"
@@ -171,6 +208,10 @@ class PrivacyGateTests(unittest.TestCase):
         findings = scan_text("settings.env", "client_secret=REDACTED_PLACEHOLDER_VALUE")
         self.assertEqual(findings, [])
 
+    def test_secret_references_and_code_expressions_pass(self) -> None:
+        text = "secretRef=runtime.secretRef credentialRef=credential:fixture-source token=await createToken() apiKey=settings?.customModelApiKey signing_key=this.signingKey"
+        self.assertEqual(scan_text("src/security.mjs", text), [])
+
     def test_auth_header_and_jwt_fail(self) -> None:
         findings = scan_text("fixture.txt", f"Authorization: Bearer {secret_value()} token={jwt_value()}")
         self.assertEqual([item.rule for item in findings], ["auth-header-secret", "jwt-token", "secret-assignment"])
@@ -185,10 +226,51 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "credential-url")
 
+    def test_dependency_lockfiles_ignore_public_registry_noise(self) -> None:
+        text = "resolved=https://registry.npmjs.org/example package=https://github.com/example/project"
+        self.assertEqual(scan_text("package-lock.json", text), [])
+        self.assertEqual(scan_text("Cargo.lock", text), [])
+        self.assertEqual(scan_text("apps/desktop/pubspec.lock", text), [])
+
+    def test_dependency_lockfiles_still_block_credentials(self) -> None:
+        findings = scan_text("package-lock.json", credential_url())
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "credential-url")
+
+    def test_synthetic_tests_ignore_network_and_system_path_noise(self) -> None:
+        text = f"url=https://{disallowed_domain()} {public_ipv4()} path={system_path()}"
+        self.assertEqual(scan_text("tests/vitest/server/example.test.mjs", text), [])
+        self.assertEqual(scan_text("apps/desktop/test/example_test.dart", text), [])
+
+    def test_synthetic_tests_still_block_real_secret_shapes(self) -> None:
+        findings = scan_text("tests/vitest/server/example.test.mjs", f"client_secret={opaque_secret_value()}")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "secret-assignment")
+
+    def test_verify_scripts_are_synthetic_but_still_scan_secrets(self) -> None:
+        synthetic = f"url=https://{disallowed_domain()} {public_ipv4()} path={system_path()}"
+        self.assertEqual(scan_text("tools/server-scripts/verify-example.mjs", synthetic), [])
+
+        findings = scan_text("tools/server-scripts/verify-example.mjs", f"client_secret={opaque_secret_value()}")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "secret-assignment")
+
+    def test_synthetic_tests_still_block_developer_home_paths(self) -> None:
+        findings = scan_text("tests/vitest/server/example.test.mjs", macos_home_path("example/private"))
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "developer-macos-home-path")
+
     def test_system_and_deployment_paths_fail(self) -> None:
         findings = scan_text("deployment/production/readme.md", system_path())
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "system-or-deployment-path")
+
+    def test_source_code_generic_system_paths_pass(self) -> None:
+        findings = scan_text("packages/foundation/src/path-defaults.mjs", "const tmp = '/tmp/licolite';")
+        self.assertEqual(findings, [])
+
+    def test_local_compose_container_paths_pass(self) -> None:
+        self.assertEqual(scan_text("docker-compose.yml", "LICO_SERVER_DATA_DIR: /opt/lico/data"), [])
 
     def test_cloud_server_provisioning_assignment_fails(self) -> None:
         findings = scan_text("tools/scripts/vultr-ip-finder.ps1", f"Hostname={cloud_host_label()}")
@@ -244,6 +326,17 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "config-directory-non-json-file")
 
+    def test_platform_profile_allows_approved_config_support_files(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            config_dir = root / "packages/foundation/config/entity-config"
+            registry_dir = root / "tools/registry"
+            config_dir.mkdir(parents=True)
+            registry_dir.mkdir(parents=True)
+            (config_dir / "README.md").write_text("configuration docs", encoding="utf-8")
+            (registry_dir / "index.mjs").write_text("export {};\n", encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="platform"), [])
+
     def test_allowlisted_json_config_shape_passes(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -253,6 +346,26 @@ class PrivacyGateTests(unittest.TestCase):
             module_dir.mkdir(parents=True)
             (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
             (module_dir / "module.json").write_text('{"module_id":"default","module_type":"default"}', encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="platform"), [])
+
+    def test_platform_profile_allows_fixed_json_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "apps/console/appearance-presets").mkdir(parents=True)
+            (root / "packages/contracts/client").mkdir(parents=True)
+            (root / "packages/foundation/src/workflow/state-machine/definitions").mkdir(parents=True)
+            (root / "apps/console/appearance-presets/default-system.json").write_text(
+                '{"schemaVersion":"1","id":"default","label":"Default","lightPresetId":"light","darkPresetId":"dark"}',
+                encoding="utf-8",
+            )
+            (root / "packages/contracts/client/status.schema.json").write_text(
+                '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{}}',
+                encoding="utf-8",
+            )
+            (root / "packages/foundation/src/workflow/state-machine/definitions/example.json").write_text(
+                '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
+                encoding="utf-8",
+            )
             self.assertEqual(scan_worktree(root, profile="platform"), [])
 
     def test_website_profile_does_not_inherit_platform_config_paths(self) -> None:

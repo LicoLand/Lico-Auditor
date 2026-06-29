@@ -10,6 +10,7 @@ from .privacy_rules import (
     file_policy_violations,
     iter_text_files,
     policy_profile_for_repo_name,
+    should_scan_text_rule,
     should_scan_file,
     value_fingerprint,
 )
@@ -25,6 +26,8 @@ def line_column(text: str, index: int) -> tuple[int, int]:
 def scan_text(relative_path: str, text: str, *, commit: str = "") -> list[Finding]:
     findings: list[Finding] = []
     for rule in RULES:
+        if not should_scan_text_rule(rule.rule_id, relative_path):
+            continue
         for match in rule.pattern.finditer(text):
             value = match.group(0)
             if "<" in value and ">" in value and rule.rule_id != "operational-endpoint-url":

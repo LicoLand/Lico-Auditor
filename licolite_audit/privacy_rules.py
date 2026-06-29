@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import math
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -98,11 +100,50 @@ BINARY_DATA_FILE_EXTENSIONS = {
     ".xls",
     ".xlsx",
 }
+DEPENDENCY_LOCKFILE_NAMES = {
+    "Cargo.lock",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "pubspec.lock",
+    "yarn.lock",
+}
+LOCKFILE_SECRET_RULES = frozenset(
+    {
+        "auth-header-secret",
+        "cloud-access-token",
+        "credential-url",
+        "jwt-token",
+        "private-key-material",
+        "ssh-public-key-material",
+    }
+)
+SYNTHETIC_TEST_NOISE_RULES = frozenset(
+    {
+        "business-sensitive-assignment",
+        "disallowed-domain",
+        "ip-literal",
+        "operational-endpoint-url",
+        "production-metadata-assignment",
+        "system-or-deployment-path",
+    }
+)
 STRICT_JSON_CONFIG_PREFIXES = (
     "packages/foundation/config/",
     "packages/server-runtime/config/",
     "tools/registry/",
 )
+ALLOWED_NON_JSON_CONFIG_PATHS = {
+    "packages/foundation/config/deployment/README.md",
+    "packages/foundation/config/entity-config/README.md",
+    "packages/foundation/config/entity-config/playbooks/knowledge-playbook-framework/README.md",
+    "packages/foundation/config/entity-config/runbooks/project-release-runbook/README.md",
+    "packages/foundation/config/frontend-feature-registry.yaml",
+    "packages/server-runtime/config/context-profiles/test.mjs",
+    "tools/registry/architecture-layout-facade.mjs",
+    "tools/registry/architecture-layout-manifest.mjs",
+    "tools/registry/index.mjs",
+    "tools/registry/source-layout-manifest.mjs",
+}
 JSON_TEMPLATE_PREFIXES = (
     "content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
     "fixtures/external-services/",
@@ -162,18 +203,27 @@ CONFIG_SHAPE_MARKER_KEYS = {
     "defaults",
     "dependencies",
     "description",
+    "darkPresetId",
     "displayName",
     "downloads",
     "entries",
+    "entityType",
+    "events",
     "files",
     "frameworks",
     "grantable",
     "historyBudget",
     "id",
+    "images",
+    "info",
+    "initialState",
+    "items",
     "javaBinPath",
     "kind",
     "label",
+    "lightPresetId",
     "manifest",
+    "machineId",
     "maxRisk",
     "modelAlias",
     "module_id",
@@ -183,7 +233,9 @@ CONFIG_SHAPE_MARKER_KEYS = {
     "packages",
     "profiles",
     "profileId",
+    "provider",
     "protocolVersion",
+    "openapi",
     "properties",
     "requiredScopes",
     "routes",
@@ -193,6 +245,7 @@ CONFIG_SHAPE_MARKER_KEYS = {
     "serverUrl",
     "serviceId",
     "serviceName",
+    "states",
     "strategies",
     "strategy",
     "targets",
@@ -226,6 +279,119 @@ AUDITED_GITHUB_REMOTES = {
 }
 ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
 ALLOWED_DOMAIN_SUFFIXES = ("licolite.com", "licolite.app")
+CODE_LIKE_HOST_FINAL_LABELS = {
+    "argv",
+    "arraybuffer",
+    "baseurl",
+    "config",
+    "createserver",
+    "domain",
+    "endpoint",
+    "equal",
+    "find",
+    "host",
+    "hostname",
+    "includes",
+    "json",
+    "lock",
+    "match",
+    "metadata",
+    "mjs",
+    "origin",
+    "payload",
+    "platform",
+    "setdefault",
+    "sh",
+    "servers",
+    "split",
+    "statustext",
+    "stderr",
+    "stdout",
+    "svg",
+    "toml",
+    "tostring",
+    "trim",
+    "ts",
+    "txt",
+    "upstream",
+    "url",
+    "yaml",
+    "yml",
+}
+PUBLIC_REFERENCE_HOSTS = {
+    "astral.sh",
+    "caddyserver.com",
+    "dart.dev",
+    "desktop.docker.com",
+    "developer.android.com",
+    "developer.apple.com",
+    "docs.langchain.com",
+    "docs.microsoft.com",
+    "downloads.digitalcorpora.org",
+    "flutter.dev",
+    "github.com",
+    "img.shields.io",
+    "json-schema.org",
+    "keepachangelog.com",
+    "learn.microsoft.com",
+    "modelcontextprotocol.io",
+    "nginx.org",
+    "nodejs.org",
+    "pub.dev",
+    "raw.githubusercontent.com",
+    "repo.maven.apache.org",
+    "repo1.maven.org",
+    "schemas.android.com",
+    "schemas.openxmlformats.org",
+    "semver.org",
+    "unofficial-builds.nodejs.org",
+    "vuejs.org",
+    "wiki.gnome.org",
+    "www.apple.com",
+    "www.conventionalcommits.org",
+    "www.gnu.org",
+    "www.microsoft.com",
+    "www.python.org",
+    "www.rust-lang.org",
+    "www.w3.org",
+}
+GLOBAL_STANDARD_REFERENCE_HOSTS = {
+    "json-schema.org",
+    "schemas.android.com",
+    "schemas.openxmlformats.org",
+    "www.w3.org",
+}
+PUBLIC_PACKAGE_HOSTS = {
+    "gerrit-releases.storage.googleapis.com",
+    "repo.maven.apache.org",
+    "repo1.maven.org",
+    "registry.npmjs.org",
+}
+PUBLIC_INTEGRATION_HOSTS = {
+    "accounts.google.com",
+    "api.dropboxapi.com",
+    "api.githubcopilot.com",
+    "api.openai.com",
+    "auth.openai.com",
+    "chatgpt.com",
+    "content.dropboxapi.com",
+    "developers.google.com",
+    "graph.microsoft.com",
+    "learn.microsoft.com",
+    "login.microsoftonline.com",
+    "oauth2.googleapis.com",
+    "www.dropbox.com",
+    "www.googleapis.com",
+}
+PUBLIC_SOURCE_REFERENCE_HOSTS = {
+    "developer.apple.com",
+    "github.com",
+    "keepachangelog.com",
+    "opencode.ai",
+    "pub.dev",
+    "semver.org",
+    "www.apple.com",
+}
 COLON = ":"
 OPTIONAL_PORT_PATTERN = _join(["(?", COLON, r"\d+)?"])
 REQUIRED_PORT_PATTERN = _join([COLON, r"\d+"])
@@ -320,6 +486,24 @@ COMMON_JSON_PATH_PATTERNS = (
     r"modules/[^/]+/module\.json",
     r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
 )
+PLATFORM_JSON_PATH_PATTERNS = (
+    r"apps/console/appearance-presets/[^/]+\.json",
+    r"apps/desktop/assets/appearance-presets/[^/]+\.json",
+    r"apps/desktop/macos/runner/assets\.xcassets/appicon\.appiconset/contents\.json",
+    r"apps/desktop/packaging\.modules\.json",
+    r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
+    r"docs/generated/[^/]+\.generated\.json",
+    r"docs/plan/[^/]+\.json",
+    r"docs/scenarios/[^/]+\.json",
+    r"packages/[^/]+/manifest\.module\.json",
+    r"packages/.+/module\.json",
+    r"packages/agents/src/agent-configs/.+\.json",
+    r"packages/contracts/.+\.schema\.json",
+    r"packages/foundation/src/version-control/version-registry(?:\.schema)?\.json",
+    r"packages/foundation/src/workflow/state-machine/definitions/[^/]+\.json",
+    r"packages/servicehub/src/registration/external-service\.example\.json",
+    r"tests/objective-test-cases\.json",
+)
 SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
     r"(?:licolite/)?content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/[^/]+\.template\.json",
 )
@@ -334,7 +518,9 @@ PROJECT_POLICIES = {
         policy_id="platform",
         description="Main LicoLite platform repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
-        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS
+        + PLATFORM_JSON_PATH_PATTERNS
+        + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
         strict_json_config_prefixes=STRICT_JSON_CONFIG_PREFIXES,
         json_template_prefixes=JSON_TEMPLATE_PREFIXES,
     ),
@@ -382,6 +568,36 @@ def value_fingerprint(value: str) -> str:
 
 def normalized_repo_path(path: str | Path) -> str:
     return Path(path).as_posix().lstrip("./").lower()
+
+
+def path_parts(relative_path: str | Path) -> set[str]:
+    return {part for part in normalized_repo_path(relative_path).split("/") if part}
+
+
+def is_dependency_lockfile_path(relative_path: str | Path) -> bool:
+    return Path(str(relative_path).replace("\\", "/")).name in DEPENDENCY_LOCKFILE_NAMES
+
+
+def is_synthetic_test_or_fixture_path(relative_path: str | Path) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    parts = path_parts(normalized)
+    return (
+        normalized.startswith(("tests/", "fixtures/"))
+        or normalized.startswith("tools/server-scripts/verify-")
+        or "/tests/" in normalized
+        or "/fixtures/" in normalized
+        or "test" in parts
+        or "tests" in parts
+        or "fixtures" in parts
+    )
+
+
+def should_scan_text_rule(rule_id: str, relative_path: str | Path) -> bool:
+    if is_dependency_lockfile_path(relative_path):
+        return rule_id in LOCKFILE_SECRET_RULES
+    if is_synthetic_test_or_fixture_path(relative_path) and rule_id in SYNTHETIC_TEST_NOISE_RULES:
+        return False
+    return True
 
 
 def file_policy_fingerprint(relative_path: str, rule_id: str, raw: bytes = b"") -> str:
@@ -463,6 +679,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
         return bool(keys & selected.shape_marker_keys)
     if normalized.startswith(selected.json_template_prefixes):
         return bool(keys & selected.shape_marker_keys)
+    if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
+        return bool(keys & selected.shape_marker_keys)
     return False
 
 
@@ -476,6 +694,8 @@ def file_policy_violations(relative_path: str, raw: bytes, profile: str | None =
         findings.append((rule_id, message, evidence_class, file_policy_fingerprint(normalized, rule_id, raw)))
 
     if is_strict_json_config_path(normalized, policy) and suffix != ".json":
+        if normalized in {item.lower() for item in ALLOWED_NON_JSON_CONFIG_PATHS}:
+            return findings
         add(
             "config-directory-non-json-file",
             f"{policy.policy_id} fixed configuration directories may contain only schema-checked JSON files.",
@@ -565,8 +785,113 @@ def host_from_endpoint(value: str) -> str:
     return normalized
 
 
+def value_has_explicit_endpoint_syntax(value: str) -> bool:
+    return bool(re.search(r"^[A-Za-z][A-Za-z0-9+.-]*://", value.strip().strip("\"'")))
+
+
+def is_dotted_code_identifier_host(host: str, original_value: str) -> bool:
+    candidate = host.strip("[] \t\r\n.,;:)")
+    if not candidate or value_has_explicit_endpoint_syntax(original_value):
+        return False
+    if any(char.isupper() for char in candidate):
+        return True
+    labels = candidate.lower().split(".")
+    if len(labels) < 2:
+        return False
+    if labels[-1] in CODE_LIKE_HOST_FINAL_LABELS:
+        return True
+    return False
+
+
+def is_reserved_synthetic_domain(host: str) -> bool:
+    normalized = host.lower().strip("[] \t\r\n.,;:)")
+    return (
+        normalized.endswith((".test", ".invalid"))
+        or normalized == "example.com"
+        or normalized.startswith("example.")
+        or normalized.endswith((".example", ".example.com", ".example.net", ".example.org"))
+        or ".example." in normalized
+    )
+
+
+def is_public_reference_path(relative_path: str) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    name = Path(normalized).name
+    return (
+        normalized.startswith(("docs/", "apps/desktop/android/", "apps/desktop/linux/", "apps/desktop/windows/"))
+        or normalized.startswith(("packages/contracts/", "tools/registry/schema/"))
+        or name in {"readme.md", "readme.zh-cn.md", "changelog.md", "contributing.md", "license", "dockerfile"}
+        or name in {"package.json", "pubspec.yaml", "analysis_options.yaml"}
+        or name.endswith((".schema.json", ".svg", ".xml"))
+        or "runtime-dependencies" in normalized
+        or "environment-compatibility" in normalized
+        or normalized.startswith(("tools/server-scripts/mcp-", "tools/server-scripts/pack-offline-server.mjs"))
+    )
+
+
+def is_public_package_reference_host(host: str, relative_path: str) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    return host.lower() in PUBLIC_PACKAGE_HOSTS and (
+        not normalized.startswith("deployment/")
+        or is_public_reference_path(normalized)
+        or "runtime-dependencies" in normalized
+        or "environment-compatibility" in normalized
+        or normalized.startswith("packages/foundation/config/deployment/")
+        or normalized.startswith("tools/server-scripts/gerrit-local.mjs")
+        or normalized.startswith("tools/server-scripts/setup-local-runtime.mjs")
+    )
+
+
+def is_public_integration_reference_host(host: str, relative_path: str) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    if host.lower() not in PUBLIC_INTEGRATION_HOSTS:
+        return False
+    return any(
+        marker in normalized
+        for marker in (
+            "external-service",
+            "shared-cloud-drive",
+            "oauth",
+            "codex-oauth",
+            "model-provider",
+        )
+    ) or normalized.startswith("docs/")
+
+
+def is_public_reference_host(host: str, relative_path: str) -> bool:
+    normalized = host.lower().strip("[] \t\r\n.,;:)")
+    return (
+        normalized in GLOBAL_STANDARD_REFERENCE_HOSTS
+    ) or (
+        normalized in PUBLIC_REFERENCE_HOSTS and is_public_reference_path(relative_path)
+    ) or (
+        normalized in PUBLIC_SOURCE_REFERENCE_HOSTS and not normalized_repo_path(relative_path).startswith("deployment/")
+    ) or is_public_package_reference_host(normalized, relative_path) or is_public_integration_reference_host(
+        normalized,
+        relative_path,
+    )
+
+
+def is_local_development_domain(host: str, relative_path: str) -> bool:
+    normalized = host.lower().strip("[] \t\r\n.,;:)")
+    return normalized.endswith(".local") and (
+        is_source_code_path(relative_path)
+        or is_public_reference_path(relative_path)
+        or normalized_repo_path(relative_path).startswith(("docs/", "tools/registry/schema/"))
+    )
+
+
+def is_local_tool_service_host(host: str, relative_path: str) -> bool:
+    normalized = host.lower().strip("[] \t\r\n.,;:)")
+    if normalized == "*":
+        return True
+    return normalized in {"lico-runtime-download-service"} and is_source_code_path(relative_path)
+
+
 def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
     if relative_path.endswith(".svg"):
+        return False
+    if normalized_repo_path(relative_path) == "tools/config-scanner.mjs":
         return False
     try:
         address = ipaddress.ip_address(value)
@@ -577,6 +902,9 @@ def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
 
 def is_non_loopback_ipv6(value: str, _relative_path: str) -> bool:
     candidate = value.strip("[] \t\r\n.,;)")
+    is_bracketed = value.strip().startswith("[") and value.strip().endswith("]")
+    if candidate == "::" or (not is_bracketed and re.search(r"[A-Za-z]", candidate)):
+        return False
     try:
         address = ipaddress.ip_address(candidate)
     except ValueError:
@@ -584,15 +912,28 @@ def is_non_loopback_ipv6(value: str, _relative_path: str) -> bool:
     return address.version == 6 and str(address) != "::1"
 
 
-def is_disallowed_domain(value: str, _relative_path: str) -> bool:
+def is_disallowed_domain(value: str, relative_path: str) -> bool:
     host = host_from_endpoint(value)
     if not host or re.fullmatch(r"\d+(?:\.\d+){3}", host):
+        return False
+    if is_dotted_code_identifier_host(host, value):
+        return False
+    if (
+        is_reserved_synthetic_domain(host)
+        or is_local_development_domain(host, relative_path)
+        or is_public_reference_host(host, relative_path)
+    ):
         return False
     return not is_allowed_domain(host)
 
 
-def is_production_ssh_endpoint(value: str, _relative_path: str) -> bool:
-    return not is_allowed_domain(host_from_endpoint(value))
+def is_production_ssh_endpoint(value: str, relative_path: str) -> bool:
+    host = host_from_endpoint(value)
+    return not (
+        is_allowed_domain(host)
+        or is_reserved_synthetic_domain(host)
+        or is_public_reference_host(host, relative_path)
+    )
 
 
 def is_public_placeholder_value(candidate: str) -> bool:
@@ -639,7 +980,9 @@ def is_public_placeholder_value(candidate: str) -> bool:
     )
     if lowered in common_values:
         return True
-    if lowered.startswith(("${", "$(", "%", "{", "{{", "<", "__", "your-", "your_")):
+    if lowered.startswith(("credential:", "secretref:", "tokenref:")):
+        return True
+    if "${" in lowered or lowered.startswith(("${", "$(", "%", "{", "{{", "<", "__", "your-", "your_")):
         return True
     if lowered.startswith(code_expression_prefixes):
         return True
@@ -672,11 +1015,37 @@ def is_operational_path(relative_path: str) -> bool:
     )
 
 
+def is_source_code_path(relative_path: str) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    return normalized.startswith(("apps/", "packages/", "crates/", "content/", "src/", "tools/", "licolite_audit/"))
+
+
+def is_system_or_deployment_path(value: str, relative_path: str) -> bool:
+    if is_synthetic_test_or_fixture_path(relative_path):
+        return False
+    normalized = normalized_repo_path(relative_path)
+    lowered_value = value.lower()
+    if normalized in {"docker-compose.yml", "docker-compose.yaml"}:
+        return False
+    if normalized == "dockerfile" or normalized.endswith("/dockerfile"):
+        return any(marker in lowered_value for marker in ("/etc/ssh", "/root/.ssh", "/srv/"))
+    if is_source_code_path(normalized):
+        return False
+    return True
+
+
 def is_operational_endpoint_url(value: str, relative_path: str) -> bool:
     if not is_operational_path(relative_path):
         return False
+    if "${" in value or "<" in value:
+        return False
     host = host_from_endpoint(value)
-    if is_allowed_domain(host):
+    if (
+        is_allowed_domain(host)
+        or is_reserved_synthetic_domain(host)
+        or is_public_reference_host(host, relative_path)
+        or is_local_tool_service_host(host, relative_path)
+    ):
         return False
     if re.fullmatch(LOCAL_OR_DOMAIN_HOST_PATTERN, host, re.IGNORECASE):
         return False
@@ -697,6 +1066,8 @@ def is_production_metadata_assignment(value: str, relative_path: str) -> bool:
     if normalized.startswith(("tests/", "fixtures/")) or "/tests/" in normalized or "/fixtures/" in normalized:
         return False
     candidate = _candidate_secret_value(value)
+    if is_source_code_path(relative_path) and (is_public_placeholder_value(candidate) or looks_like_code_expression_value(candidate)):
+        return False
     return not is_public_placeholder_value(candidate)
 
 
@@ -720,24 +1091,84 @@ def _candidate_secret_value(value: str) -> str:
     return match.group(1) if match else value
 
 
-def is_non_placeholder_secret(value: str, _relative_path: str) -> bool:
+def _candidate_secret_key(value: str) -> str:
+    match = re.search(r"\b([A-Za-z0-9_-]+)\b\s*[:=]", value)
+    return match.group(1).lower().replace("-", "_") if match else ""
+
+
+def is_secret_reference_key(key: str) -> bool:
+    normalized = key.lower().replace("-", "_")
+    return normalized.endswith(("ref", "refs", "reference", "reference_id"))
+
+
+def looks_like_code_expression_value(candidate: str) -> bool:
+    stripped = candidate.strip().strip("\"'`.,;)}]")
+    if "${" in stripped:
+        return True
+    if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$?.]*", stripped):
+        return True
+    if re.search(r"[(){}\[\]]", stripped):
+        return True
+    return bool(re.search(r"\b(?:await|new|return|async|function)\b", stripped))
+
+
+def shannon_entropy(value: str) -> float:
+    if not value:
+        return 0.0
+    length = len(value)
+    return -sum((count / length) * math.log2(count / length) for count in Counter(value).values())
+
+
+def secret_character_class_count(value: str) -> int:
+    classes = [
+        any(char.islower() for char in value),
+        any(char.isupper() for char in value),
+        any(char.isdigit() for char in value),
+        any(not char.isalnum() for char in value),
+    ]
+    return sum(classes)
+
+
+def looks_like_opaque_secret_literal(candidate: str) -> bool:
+    stripped = candidate.strip().strip("\"'`.,;)}]")
+    if len(stripped) < 20:
+        return False
+    return secret_character_class_count(stripped) >= 3 and shannon_entropy(stripped) >= 3.2
+
+
+def is_non_placeholder_secret(value: str, relative_path: str) -> bool:
+    if value.lower().startswith(("credential:", "secretref:", "tokenref:")):
+        return False
+    if not re.search(r"[:=]", value):
+        return False
+    key = _candidate_secret_key(value)
+    if is_secret_reference_key(key):
+        return False
     candidate = _candidate_secret_value(value).strip()
     lowered = candidate.lower()
     if len(candidate) < 16:
+        return False
+    if is_public_placeholder_value(candidate):
         return False
     placeholder_words = {
         "changeme",
         "dummy",
         "example",
         "fake",
+        "fixture",
+        "mock",
         "placeholder",
         "redacted",
         "sample",
+        "test",
     }
     if any(word in lowered for word in placeholder_words):
         return False
     if candidate.startswith(("${", "$(", "%", "{", "{{")):
         return False
+    if is_synthetic_test_or_fixture_path(relative_path) or is_source_code_path(relative_path):
+        if looks_like_code_expression_value(candidate) or not looks_like_opaque_secret_literal(candidate):
+            return False
     return True
 
 
@@ -878,6 +1309,7 @@ RULES = [
         "Absolute server, container, deployment, or developer toolchain paths must not be committed.",
         SYSTEM_PATH_PATTERN,
         "local-path",
+        is_system_or_deployment_path,
     ),
     Rule(
         "developer-macos-home-path",
