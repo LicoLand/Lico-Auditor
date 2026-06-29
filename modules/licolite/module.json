@@ -1,8 +1,8 @@
 {
   "module_id": "licolite",
   "module_type": "project",
-  "project_ids": ["licolite", "licolite-skills", "licolite.com", ".github", "licolite-community", "licolite-deprecated"],
-  "target_repositories": ["LicoLite/licolite", "LicoLite/licolite-skills", "LicoLite/licolite.com", "LicoLite/.github", "LicoLite/licolite-community", "LicoLite/licolite-deprecated"],
+  "project_ids": ["licolite", "licolite-skills", "licolite.com", ".github", "licolite-community"],
+  "target_repositories": ["LicoLite/licolite", "LicoLite/licolite-skills", "LicoLite/licolite.com", "LicoLite/.github", "LicoLite/licolite-community"],
   "audit_source_branch": "only",
   "target_branches": [
     "licolite:nightly",
@@ -11,10 +11,7 @@
     "licolite-skills:main",
     "licolite.com:main",
     ".github:main",
-    "licolite-community:main",
-    "licolite-deprecated:main",
-    "licolite-deprecated:nightly",
-    "licolite-deprecated:stable"
+    "licolite-community:main"
   ],
   "current_gate_scope": [
     "single latest only branch source-of-truth enforcement",

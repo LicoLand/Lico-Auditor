@@ -78,14 +78,12 @@ GITHUB_SKILLS_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-skil
 GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.com.git"])
 GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLite/.github.git"])
 GITHUB_COMMUNITY_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-community.git"])
-GITHUB_DEPRECATED_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-deprecated.git"])
 AUDITED_GITHUB_REMOTES = {
     "licolite": GITHUB_REMOTE,
     "licolite-skills": GITHUB_SKILLS_REMOTE,
     "licolite.com": GITHUB_SITE_REMOTE,
     ".github": GITHUB_ORG_PROFILE_REMOTE,
     "licolite-community": GITHUB_COMMUNITY_REMOTE,
-    "licolite-deprecated": GITHUB_DEPRECATED_REMOTE,
 }
 ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
 ALLOWED_DOMAIN_SUFFIXES = ("licolite.com", "licolite.app")
