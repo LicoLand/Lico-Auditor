@@ -27,9 +27,21 @@ command prints the matched sensitive value.
 ## Current Gate Scope
 
 - developer workstation and workspace paths;
+- data files are denied by default: JSON outside approved configuration paths,
+  JSONL/NDJSON, CSV/TSV, SQL dumps, database files, spreadsheets, parquet, and
+  other export-like formats;
+- fixed configuration directories must contain schema-checked JSON only;
+- allowlisted JSON must look like project configuration, registry, manifest, or
+  template objects, and user/customer/contact/account record-shaped JSON is
+  blocked even inside allowlisted paths;
 - any committed IP literal except local loopback;
 - host/domain endpoints outside localhost, licolite.com, and licolite.app;
 - production backend/admin endpoint/provider metadata;
+- customer, tenant, contract, revenue, commercial account, and other
+  business-confidential values;
+- production deployment, cloud resource, backend service, cluster, region,
+  bucket, database, image, registry, or namespace metadata in operational
+  material;
 - private keys, credential URLs, authorization headers, JWTs, cloud access
   tokens, and secret-like configuration assignments;
 - committed SSH public key material;

@@ -5,7 +5,7 @@ from io import BytesIO
 from pathlib import Path
 
 from .models import Finding
-from .privacy_rules import RULES, iter_text_files, should_scan_file, value_fingerprint
+from .privacy_rules import RULES, file_policy_violations, iter_text_files, should_scan_file, value_fingerprint
 
 
 def line_column(text: str, index: int) -> tuple[int, int]:
@@ -41,6 +41,21 @@ def scan_text(relative_path: str, text: str, *, commit: str = "") -> list[Findin
     return findings
 
 
+def scan_file_policy(relative_path: str, raw: bytes, *, commit: str = "") -> list[Finding]:
+    return [
+        Finding(
+            severity="high-risk",
+            rule=rule,
+            message=message,
+            path=relative_path,
+            fingerprint=fingerprint,
+            evidence_class=evidence_class,
+            commit=commit,
+        )
+        for rule, message, evidence_class, fingerprint in file_policy_violations(relative_path, raw)
+    ]
+
+
 def scan_worktree(repo_root: Path, *, commit: str = "") -> list[Finding]:
     findings: list[Finding] = []
     for path in iter_text_files(repo_root):
@@ -48,10 +63,11 @@ def scan_worktree(repo_root: Path, *, commit: str = "") -> list[Finding]:
             raw = path.read_bytes()
         except OSError:
             continue
+        relative_path = path.relative_to(repo_root).as_posix()
+        findings.extend(scan_file_policy(relative_path, raw, commit=commit))
         if b"\0" in raw:
             continue
         text = raw.decode("utf-8", "replace")
-        relative_path = path.relative_to(repo_root).as_posix()
         findings.extend(scan_text(relative_path, text, commit=commit))
     return sorted(findings, key=lambda item: (item.path, item.line, item.column, item.rule))
 
@@ -146,6 +162,7 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0) ->
             seen_blobs.add(blob)
             new_blobs.append(blob)
         for relative_path, raw in _cat_blob_batch(repo_root, new_blobs):
+            findings.extend(scan_file_policy(relative_path, raw, commit=commit))
             if b"\0" in raw:
                 continue
             text = raw.decode("utf-8", "replace")

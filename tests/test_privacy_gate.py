@@ -68,6 +68,14 @@ def cloud_host_label() -> str:
     return "lico" + "-host"
 
 
+def business_customer_name() -> str:
+    return "Contoso" + "Bank"
+
+
+def business_revenue_assignment() -> str:
+    return "revenue=" + "100000"
+
+
 class PrivacyGateTests(unittest.TestCase):
     def test_finding_redacts_value_and_keeps_fingerprint(self) -> None:
         leaked_path = macos_home_path("example/private")
@@ -119,6 +127,35 @@ class PrivacyGateTests(unittest.TestCase):
     def test_allowed_operational_script_endpoint_urls_pass(self) -> None:
         text = "curl http://localhost:3000/health && curl https://api.licolite.com/health"
         self.assertEqual(scan_text("tools/scripts/probe.sh", text), [])
+
+    def test_business_sensitive_assignments_fail(self) -> None:
+        text = f"customer_name={business_customer_name()} {business_revenue_assignment()}"
+        findings = scan_text("docs/private/accounts.md", text)
+        self.assertEqual([item.rule for item in findings], ["business-sensitive-assignment", "business-sensitive-assignment"])
+
+    def test_business_sensitive_placeholders_pass(self) -> None:
+        text = "customer_name=REDACTED_PLACEHOLDER tenant_id=${TENANT_ID} revenue=example"
+        self.assertEqual(scan_text("docs/examples/accounts.md", text), [])
+
+    def test_business_sensitive_code_expressions_pass(self) -> None:
+        text = "customerName = input.customerName\nsubscription_id = config.subscriptionId"
+        self.assertEqual(scan_text("src/customer.ts", text), [])
+
+    def test_production_metadata_assignments_fail_in_operational_paths(self) -> None:
+        text = "cluster_name=prod-primary region=us-east-1 service_name=backend-api"
+        findings = scan_text("deployment/production/settings.env", text)
+        self.assertEqual(
+            [item.rule for item in findings],
+            [
+                "production-metadata-assignment",
+                "production-metadata-assignment",
+                "production-metadata-assignment",
+            ],
+        )
+
+    def test_production_metadata_placeholders_pass(self) -> None:
+        text = "cluster_name=example-cluster region=${REGION} service_name=licolite"
+        self.assertEqual(scan_text("tools/server-scripts/deploy.sh", text), [])
 
     def test_private_key_material_fails(self) -> None:
         findings = scan_text("key.pem", private_key_marker())
@@ -178,6 +215,58 @@ class PrivacyGateTests(unittest.TestCase):
         rendered = report.to_dict()
         self.assertEqual(rendered["target"]["repo"], "licolite")
         self.assertNotIn(local_path, str(rendered))
+
+    def test_unknown_json_data_file_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "exports").mkdir()
+            (root / "exports/users.json").write_text('{"users":[{"name":"Alice","email":"alice@example.test"}]}', encoding="utf-8")
+            findings = scan_worktree(root)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "json-data-file-not-allowlisted")
+
+    def test_data_export_files_fail_even_when_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "exports").mkdir()
+            (root / "exports/users.jsonl").write_text('{"name":"Alice"}\n', encoding="utf-8")
+            (root / "exports/app.sqlite").write_bytes(b"SQLite format 3\0")
+            findings = scan_worktree(root)
+        self.assertEqual([item.rule for item in findings], ["database-or-binary-data-file", "data-file-not-allowed"])
+
+    def test_strict_config_directory_rejects_non_json_files(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            config_dir = root / "packages/foundation/config"
+            config_dir.mkdir(parents=True)
+            (config_dir / "notes.md").write_text("not a config object", encoding="utf-8")
+            findings = scan_worktree(root)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "config-directory-non-json-file")
+
+    def test_allowlisted_json_config_shape_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            config_dir = root / "packages/foundation/config/entity-config/tools"
+            module_dir = root / "modules/default"
+            config_dir.mkdir(parents=True)
+            module_dir.mkdir(parents=True)
+            (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
+            (module_dir / "module.json").write_text('{"module_id":"default","module_type":"default"}', encoding="utf-8")
+            self.assertEqual(scan_worktree(root), [])
+
+    def test_allowlisted_config_rejects_user_record_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            config_dir = root / "packages/foundation/config"
+            config_dir.mkdir(parents=True)
+            (config_dir / "default-users.json").write_text(
+                '{"schemaVersion":"1","users":[{"name":"Alice","email":"alice@example.test"}]}',
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "user-record-data-shape")
 
 
 if __name__ == "__main__":

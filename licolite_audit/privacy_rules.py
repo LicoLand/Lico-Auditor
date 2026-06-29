@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,6 +67,144 @@ TEXT_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
+DATA_FILE_EXTENSIONS = {
+    ".arrow",
+    ".avro",
+    ".bak",
+    ".csv",
+    ".db",
+    ".dump",
+    ".feather",
+    ".jsonl",
+    ".ndjson",
+    ".orc",
+    ".parquet",
+    ".sql",
+    ".sqlite",
+    ".sqlite3",
+    ".tsv",
+    ".xls",
+    ".xlsx",
+}
+BINARY_DATA_FILE_EXTENSIONS = {
+    ".arrow",
+    ".avro",
+    ".db",
+    ".feather",
+    ".orc",
+    ".parquet",
+    ".sqlite",
+    ".sqlite3",
+    ".xls",
+    ".xlsx",
+}
+STRICT_JSON_CONFIG_PREFIXES = (
+    "packages/foundation/config/",
+    "packages/server-runtime/config/",
+    "tools/registry/",
+)
+JSON_TEMPLATE_PREFIXES = (
+    "content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
+    "fixtures/external-services/",
+)
+ALLOWED_JSON_FILE_NAMES = {
+    "package-lock.json",
+    "package.json",
+    "tsconfig.json",
+}
+USER_RECORD_KEYS = {
+    "address",
+    "avatar",
+    "birthday",
+    "company",
+    "department",
+    "email",
+    "full_name",
+    "fullname",
+    "identity",
+    "mail",
+    "mobile",
+    "name",
+    "openid",
+    "phone",
+    "profile",
+    "real_name",
+    "realname",
+    "ssn",
+    "tel",
+    "user",
+    "user_id",
+    "userid",
+    "username",
+}
+USER_RECORD_CONTAINER_KEYS = {
+    "accounts",
+    "contacts",
+    "customers",
+    "data",
+    "employees",
+    "items",
+    "members",
+    "people",
+    "records",
+    "rows",
+    "users",
+}
+CONFIG_SHAPE_MARKER_KEYS = {
+    "$id",
+    "$schema",
+    "bundleType",
+    "capabilities",
+    "compression",
+    "compilerOptions",
+    "contextWindowTokens",
+    "defaultForAgents",
+    "defaults",
+    "dependencies",
+    "description",
+    "displayName",
+    "downloads",
+    "entries",
+    "files",
+    "frameworks",
+    "grantable",
+    "historyBudget",
+    "id",
+    "javaBinPath",
+    "kind",
+    "label",
+    "manifest",
+    "maxRisk",
+    "modelAlias",
+    "module_id",
+    "module_type",
+    "name",
+    "operations",
+    "packages",
+    "profiles",
+    "profileId",
+    "protocolVersion",
+    "properties",
+    "requiredScopes",
+    "routes",
+    "schemaVersion",
+    "scripts",
+    "selectionPolicy",
+    "serverUrl",
+    "serviceId",
+    "serviceName",
+    "strategies",
+    "strategy",
+    "targets",
+    "templates",
+    "tikaJarPath",
+    "toolsets",
+    "target_repositories",
+    "type",
+    "validation",
+    "version",
+    "waitServer",
+}
 
 
 def _join(parts: Iterable[str]) -> str:
@@ -119,6 +258,14 @@ OPS_HOST_ASSIGNMENT_PATTERN = re.compile(
     r"\b(?:host|hostname|label|name|server|server_name)\b\s*[:=]\s*[\"']?[A-Za-z0-9][A-Za-z0-9._-]{2,}",
     re.IGNORECASE,
 )
+BUSINESS_INFO_ASSIGNMENT_PATTERN = re.compile(
+    r"\b(?:arr|billing[_-]?account|commercial[_-]?account|contract[_-]?id|customer|customer[_-]?id|customer[_-]?name|deal|deal[_-]?id|invoice|invoice[_-]?id|lead|licensee|mrr|partner|prospect|revenue|sales[_-]?account)\b\s*[:=]\s*[\"']?[^\s\"'#,;}]{3,}",
+    re.IGNORECASE,
+)
+PRODUCTION_METADATA_ASSIGNMENT_PATTERN = re.compile(
+    r"\b(?:account[_-]?id|bucket|bucket[_-]?name|cluster|cluster[_-]?name|container[_-]?image|database|database[_-]?name|datacenter|db[_-]?name|droplet[_-]?id|image|instance|instance[_-]?id|kube[_-]?context|namespace|project[_-]?id|region|registry|resource[_-]?group|server[_-]?id|service[_-]?name|subscription[_-]?id|tenant[_-]?id|zone)\b\s*[:=]\s*[\"']?[^\s\"'#,;}]{3,}",
+    re.IGNORECASE,
+)
 AUTH_HEADER_PATTERN = re.compile(
     r"\b(?:authorization|x-api-key|api-key)\b\s*[:=]\s*[\"']?(?:bearer\s+)?[A-Za-z0-9._~+/=-]{16,}",
     re.IGNORECASE,
@@ -160,6 +307,161 @@ class Rule:
 
 def value_fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8", "replace")).hexdigest()[:16]
+
+
+def normalized_repo_path(path: str | Path) -> str:
+    return Path(path).as_posix().lstrip("./").lower()
+
+
+def file_policy_fingerprint(relative_path: str, rule_id: str, raw: bytes = b"") -> str:
+    payload = relative_path.encode("utf-8", "replace") + b"\0" + rule_id.encode() + b"\0" + raw[:256]
+    return hashlib.sha256(payload).hexdigest()[:16]
+
+
+def is_strict_json_config_path(relative_path: str) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    return normalized.startswith(STRICT_JSON_CONFIG_PREFIXES)
+
+
+def is_allowed_json_config_path(relative_path: str) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    name = Path(normalized).name
+    if name in ALLOWED_JSON_FILE_NAMES:
+        return True
+    if re.fullmatch(r"modules/[^/]+/module\.json", normalized):
+        return True
+    if re.fullmatch(r"tsconfig\.[a-z0-9_.-]+\.json", name):
+        return True
+    if is_strict_json_config_path(normalized):
+        return True
+    if normalized.startswith(JSON_TEMPLATE_PREFIXES):
+        return name.endswith((".json", ".template.json", ".config.json"))
+    return False
+
+
+def json_object_keys(data: object) -> set[str]:
+    return {str(key) for key in data.keys()} if isinstance(data, dict) else set()
+
+
+def user_record_score(record: object) -> int:
+    if not isinstance(record, dict):
+        return 0
+    normalized_keys = {str(key).lower().replace("-", "_") for key in record}
+    return len(normalized_keys & USER_RECORD_KEYS)
+
+
+def looks_like_user_record_collection(data: object) -> bool:
+    if isinstance(data, list):
+        objects = [item for item in data[:20] if isinstance(item, dict)]
+        return bool(objects) and any(user_record_score(item) >= 2 for item in objects)
+    if isinstance(data, dict):
+        normalized_keys = {str(key).lower().replace("-", "_") for key in data}
+        if user_record_score(data) >= 3:
+            return True
+        for key, value in data.items():
+            normalized_key = str(key).lower().replace("-", "_")
+            if normalized_key in USER_RECORD_CONTAINER_KEYS and looks_like_user_record_collection(value):
+                return True
+        if normalized_keys & USER_RECORD_CONTAINER_KEYS:
+            for value in data.values():
+                if looks_like_user_record_collection(value):
+                    return True
+    return False
+
+
+def is_allowed_json_config_shape(relative_path: str, data: object) -> bool:
+    normalized = normalized_repo_path(relative_path)
+    name = Path(normalized).name
+    if not isinstance(data, dict):
+        return False
+    keys = json_object_keys(data)
+    if name == "package.json":
+        return bool(keys & {"name", "version", "scripts", "dependencies", "devDependencies"})
+    if name == "package-lock.json":
+        return bool(keys & {"name", "lockfileVersion", "packages", "dependencies"})
+    if name.startswith("tsconfig") and name.endswith(".json"):
+        return bool(keys & {"compilerOptions", "extends", "files", "include", "references"})
+    if re.fullmatch(r"modules/[^/]+/module\.json", normalized):
+        return {"module_id", "module_type"} <= keys
+    if normalized.startswith("tools/registry/schema/") and name.endswith(".schema.json"):
+        return {"$schema", "type"} <= keys and "properties" in keys
+    if normalized.startswith("tools/registry/"):
+        return bool(keys & CONFIG_SHAPE_MARKER_KEYS)
+    if normalized.startswith(STRICT_JSON_CONFIG_PREFIXES):
+        return bool(keys & CONFIG_SHAPE_MARKER_KEYS)
+    if normalized.startswith(JSON_TEMPLATE_PREFIXES):
+        return bool(keys & CONFIG_SHAPE_MARKER_KEYS)
+    return False
+
+
+def file_policy_violations(relative_path: str, raw: bytes) -> list[tuple[str, str, str, str]]:
+    normalized = normalized_repo_path(relative_path)
+    suffix = Path(normalized).suffix.lower()
+    findings: list[tuple[str, str, str, str]] = []
+
+    def add(rule_id: str, message: str, evidence_class: str) -> None:
+        findings.append((rule_id, message, evidence_class, file_policy_fingerprint(normalized, rule_id, raw)))
+
+    if is_strict_json_config_path(normalized) and suffix != ".json":
+        add(
+            "config-directory-non-json-file",
+            "Fixed project configuration directories may contain only schema-checked JSON files.",
+            "data-file-policy",
+        )
+        return findings
+
+    if suffix in BINARY_DATA_FILE_EXTENSIONS:
+        add(
+            "database-or-binary-data-file",
+            "Database, spreadsheet, parquet, or other binary data files must not be committed.",
+            "data-file-policy",
+        )
+        return findings
+
+    if suffix in {".csv", ".tsv", ".sql", ".dump", ".jsonl", ".ndjson"}:
+        add(
+            "data-file-not-allowed",
+            "Tabular, SQL dump, JSONL, or other data export files are denied unless replaced by an approved synthetic fixture format.",
+            "data-file-policy",
+        )
+        return findings
+
+    if suffix != ".json":
+        return findings
+
+    if not is_allowed_json_config_path(normalized):
+        add(
+            "json-data-file-not-allowlisted",
+            "JSON files are denied by default unless they are approved project configuration, registry, manifest, or template files.",
+            "data-file-policy",
+        )
+        return findings
+
+    try:
+        data = json.loads(raw.decode("utf-8", "replace"))
+    except json.JSONDecodeError:
+        add(
+            "json-config-invalid",
+            "Allowlisted JSON configuration files must parse as valid JSON.",
+            "data-file-policy",
+        )
+        return findings
+
+    if looks_like_user_record_collection(data):
+        add(
+            "user-record-data-shape",
+            "User, customer, contact, account, or people record-shaped data must not be committed.",
+            "user-data",
+        )
+
+    if not is_allowed_json_config_shape(normalized, data):
+        add(
+            "json-config-shape-invalid",
+            "Allowlisted JSON files must match the expected project configuration or registry object shape.",
+            "data-file-policy",
+        )
+
+    return findings
 
 
 def is_allowed_domain(host: str) -> bool:
@@ -220,6 +522,59 @@ def is_production_ssh_endpoint(value: str, _relative_path: str) -> bool:
     return not is_allowed_domain(host_from_endpoint(value))
 
 
+def is_public_placeholder_value(candidate: str) -> bool:
+    normalized = candidate.strip().strip("\"'`.,;)}]")
+    lowered = normalized.lower()
+    if len(normalized) < 3:
+        return True
+    placeholder_words = {
+        "changeme",
+        "demo",
+        "dummy",
+        "example",
+        "fake",
+        "placeholder",
+        "redacted",
+        "sample",
+        "test",
+    }
+    common_values = {
+        "false",
+        "none",
+        "null",
+        "object",
+        "string",
+        "todo",
+        "true",
+        "unknown",
+        "undefined",
+    }
+    code_expression_prefixes = (
+        "config.",
+        "context.",
+        "ctx.",
+        "env.",
+        "input.",
+        "options.",
+        "params.",
+        "process.",
+        "props.",
+        "request.",
+        "response.",
+        "state.",
+        "this.",
+    )
+    if lowered in common_values:
+        return True
+    if lowered.startswith(("${", "$(", "%", "{", "{{", "<", "__", "your-", "your_")):
+        return True
+    if lowered.startswith(code_expression_prefixes):
+        return True
+    if any(word in lowered for word in placeholder_words):
+        return True
+    return "licolite" in lowered or is_allowed_domain(normalized)
+
+
 def is_operational_path(relative_path: str) -> bool:
     normalized = relative_path.lower().replace("\\", "/")
     parts = {part for part in normalized.split("/") if part}
@@ -255,6 +610,21 @@ def is_operational_endpoint_url(value: str, relative_path: str) -> bool:
     if re.fullmatch(r"\d+(?:\.\d+){3}", host):
         return False
     return True
+
+
+def is_sensitive_business_assignment(value: str, _relative_path: str) -> bool:
+    candidate = _candidate_secret_value(value)
+    return not is_public_placeholder_value(candidate)
+
+
+def is_production_metadata_assignment(value: str, relative_path: str) -> bool:
+    if not is_operational_path(relative_path):
+        return False
+    normalized = relative_path.lower().replace("\\", "/")
+    if normalized.startswith(("tests/", "fixtures/")) or "/tests/" in normalized or "/fixtures/" in normalized:
+        return False
+    candidate = _candidate_secret_value(value)
+    return not is_public_placeholder_value(candidate)
 
 
 def is_deployment_provider_resource_id(_value: str, relative_path: str) -> bool:
@@ -398,6 +768,22 @@ RULES = [
         is_operational_endpoint_url,
     ),
     Rule(
+        "business-sensitive-assignment",
+        "high-risk",
+        "Customer, tenant, contract, revenue, or commercial account values must not be committed.",
+        BUSINESS_INFO_ASSIGNMENT_PATTERN,
+        "business-confidential",
+        is_sensitive_business_assignment,
+    ),
+    Rule(
+        "production-metadata-assignment",
+        "high-risk",
+        "Production deployment, cloud resource, or backend service metadata must not be committed.",
+        PRODUCTION_METADATA_ASSIGNMENT_PATTERN,
+        "business-confidential",
+        is_production_metadata_assignment,
+    ),
+    Rule(
         "provider-resource-id",
         "high-risk",
         "Cloud/provider resource IDs must not be committed in deployment material.",
@@ -440,6 +826,10 @@ RULES = [
 def should_scan_file(path: Path) -> bool:
     if any(part in IGNORED_DIR_NAMES for part in path.parts):
         return False
+    if is_strict_json_config_path(path.as_posix()):
+        return True
+    if path.suffix.lower() in DATA_FILE_EXTENSIONS:
+        return True
     if path.name == "Dockerfile" or ".env" in path.name:
         return True
     return path.suffix.lower() in TEXT_EXTENSIONS
