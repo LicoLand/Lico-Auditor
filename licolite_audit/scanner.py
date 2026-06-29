@@ -5,7 +5,14 @@ from io import BytesIO
 from pathlib import Path
 
 from .models import Finding
-from .privacy_rules import RULES, file_policy_violations, iter_text_files, should_scan_file, value_fingerprint
+from .privacy_rules import (
+    RULES,
+    file_policy_violations,
+    iter_text_files,
+    policy_profile_for_repo_name,
+    should_scan_file,
+    value_fingerprint,
+)
 
 
 def line_column(text: str, index: int) -> tuple[int, int]:
@@ -41,7 +48,13 @@ def scan_text(relative_path: str, text: str, *, commit: str = "") -> list[Findin
     return findings
 
 
-def scan_file_policy(relative_path: str, raw: bytes, *, commit: str = "") -> list[Finding]:
+def resolve_scan_profile(repo_root: Path, profile: str | None = None) -> str:
+    if profile and profile != "auto":
+        return profile
+    return policy_profile_for_repo_name(repo_root.name)
+
+
+def scan_file_policy(relative_path: str, raw: bytes, *, commit: str = "", profile: str | None = None) -> list[Finding]:
     return [
         Finding(
             severity="high-risk",
@@ -52,19 +65,20 @@ def scan_file_policy(relative_path: str, raw: bytes, *, commit: str = "") -> lis
             evidence_class=evidence_class,
             commit=commit,
         )
-        for rule, message, evidence_class, fingerprint in file_policy_violations(relative_path, raw)
+        for rule, message, evidence_class, fingerprint in file_policy_violations(relative_path, raw, profile)
     ]
 
 
-def scan_worktree(repo_root: Path, *, commit: str = "") -> list[Finding]:
+def scan_worktree(repo_root: Path, *, commit: str = "", profile: str | None = None) -> list[Finding]:
+    scan_profile = resolve_scan_profile(repo_root, profile)
     findings: list[Finding] = []
-    for path in iter_text_files(repo_root):
+    for path in iter_text_files(repo_root, scan_profile):
         try:
             raw = path.read_bytes()
         except OSError:
             continue
         relative_path = path.relative_to(repo_root).as_posix()
-        findings.extend(scan_file_policy(relative_path, raw, commit=commit))
+        findings.extend(scan_file_policy(relative_path, raw, commit=commit, profile=scan_profile))
         if b"\0" in raw:
             continue
         text = raw.decode("utf-8", "replace")
@@ -83,7 +97,7 @@ def git(repo_root: Path, args: list[str], *, input_bytes: bytes | None = None) -
     )
 
 
-def _commit_blobs(repo_root: Path, commit: str) -> tuple[list[tuple[bytes, str]], Finding | None]:
+def _commit_blobs(repo_root: Path, commit: str, *, profile: str | None = None) -> tuple[list[tuple[bytes, str]], Finding | None]:
     tree = git(repo_root, ["ls-tree", "-rz", commit])
     if tree.returncode != 0:
         return [], Finding(
@@ -104,7 +118,7 @@ def _commit_blobs(repo_root: Path, commit: str) -> tuple[list[tuple[bytes, str]]
         if kind != b"blob":
             continue
         relative_path = raw_path.decode("utf-8", "replace")
-        if should_scan_file(Path(relative_path)):
+        if should_scan_file(Path(relative_path), profile):
             blobs.append((oid, relative_path))
     return blobs, None
 
@@ -135,7 +149,8 @@ def _cat_blob_batch(repo_root: Path, blobs: list[tuple[bytes, str]]) -> list[tup
     return contents
 
 
-def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0) -> list[Finding]:
+def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0, profile: str | None = None) -> list[Finding]:
+    scan_profile = resolve_scan_profile(repo_root, profile)
     revs = git(repo_root, ["rev-list", "--reverse", ref])
     if revs.returncode != 0:
         return [
@@ -151,7 +166,7 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0) ->
     findings: list[Finding] = []
     seen_blobs: set[tuple[bytes, str]] = set()
     for commit in commits:
-        blobs, tree_error = _commit_blobs(repo_root, commit)
+        blobs, tree_error = _commit_blobs(repo_root, commit, profile=scan_profile)
         if tree_error is not None:
             findings.append(tree_error)
             continue
@@ -162,7 +177,7 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0) ->
             seen_blobs.add(blob)
             new_blobs.append(blob)
         for relative_path, raw in _cat_blob_batch(repo_root, new_blobs):
-            findings.extend(scan_file_policy(relative_path, raw, commit=commit))
+            findings.extend(scan_file_policy(relative_path, raw, commit=commit, profile=scan_profile))
             if b"\0" in raw:
                 continue
             text = raw.decode("utf-8", "replace")

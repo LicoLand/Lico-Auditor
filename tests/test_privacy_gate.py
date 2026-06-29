@@ -240,7 +240,7 @@ class PrivacyGateTests(unittest.TestCase):
             config_dir = root / "packages/foundation/config"
             config_dir.mkdir(parents=True)
             (config_dir / "notes.md").write_text("not a config object", encoding="utf-8")
-            findings = scan_worktree(root)
+            findings = scan_worktree(root, profile="platform")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "config-directory-non-json-file")
 
@@ -253,7 +253,41 @@ class PrivacyGateTests(unittest.TestCase):
             module_dir.mkdir(parents=True)
             (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
             (module_dir / "module.json").write_text('{"module_id":"default","module_type":"default"}', encoding="utf-8")
-            self.assertEqual(scan_worktree(root), [])
+            self.assertEqual(scan_worktree(root, profile="platform"), [])
+
+    def test_website_profile_does_not_inherit_platform_config_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            config_dir = root / "packages/foundation/config"
+            config_dir.mkdir(parents=True)
+            (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
+            findings = scan_worktree(root, profile="website")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "json-data-file-not-allowlisted")
+
+    def test_skills_profile_allows_skill_template_json(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            asset_dir = root / "licolite/content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets"
+            asset_dir.mkdir(parents=True)
+            (asset_dir / "rest-service.template.json").write_text(
+                '{"kind":"rest-service","serviceId":"example","serviceName":"example","tools":[]}',
+                encoding="utf-8",
+            )
+            self.assertEqual(scan_worktree(root, profile="skills"), [])
+
+    def test_common_profile_rejects_skill_template_json(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            asset_dir = root / "licolite/content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets"
+            asset_dir.mkdir(parents=True)
+            (asset_dir / "rest-service.template.json").write_text(
+                '{"kind":"rest-service","serviceId":"example","serviceName":"example","tools":[]}',
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="common")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "json-data-file-not-allowlisted")
 
     def test_allowlisted_config_rejects_user_record_shape(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -264,7 +298,7 @@ class PrivacyGateTests(unittest.TestCase):
                 '{"schemaVersion":"1","users":[{"name":"Alice","email":"alice@example.test"}]}',
                 encoding="utf-8",
             )
-            findings = scan_worktree(root)
+            findings = scan_worktree(root, profile="platform")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "user-record-data-shape")
 

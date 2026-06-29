@@ -35,9 +35,9 @@ def command_gate(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo).resolve()
     if not repo_root.exists():
         return emit_findings([Finding("error", "target-missing", "Target repo does not exist.")], fmt=args.format)
-    findings = scan_worktree(repo_root, commit=current_commit(repo_root))
+    findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=args.profile)
     if args.history:
-        findings.extend(scan_history(repo_root, ref=args.ref, max_commits=args.max_commits))
+        findings.extend(scan_history(repo_root, ref=args.ref, max_commits=args.max_commits, profile=args.profile))
     return emit_findings(findings, fmt=args.format)
 
 
@@ -45,9 +45,9 @@ def command_report(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo).resolve()
     findings: list[Finding]
     if repo_root.exists():
-        findings = scan_worktree(repo_root, commit=current_commit(repo_root))
+        findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=args.profile)
         if args.history:
-            findings.extend(scan_history(repo_root, ref=args.ref, max_commits=args.max_commits))
+            findings.extend(scan_history(repo_root, ref=args.ref, max_commits=args.max_commits, profile=args.profile))
     else:
         findings = [Finding("error", "target-missing", "Target repo does not exist.")]
     report = AuditReport(AuditTarget(repo_root=repo_root, project=args.project, ref=args.ref), findings)
@@ -193,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--ref", default="HEAD", help="Git ref to scan when --history is enabled.")
     gate.add_argument("--history", action="store_true", help="Scan reachable git history for the target ref.")
     gate.add_argument("--max-commits", type=int, default=0, help="Limit history scan to the latest N commits; 0 scans all.")
+    gate.add_argument("--profile", default="auto", help="Policy profile: auto, common, platform, website, or skills.")
     gate.add_argument("--format", choices=("text", "json"), default="text")
     gate.set_defaults(func=command_gate)
 
@@ -202,6 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--ref", default="HEAD")
     report.add_argument("--history", action="store_true")
     report.add_argument("--max-commits", type=int, default=0)
+    report.add_argument("--profile", default="auto", help="Policy profile: auto, common, platform, website, or skills.")
     report.add_argument("--format", choices=("json", "text"), default="json")
     report.set_defaults(func=command_report)
 

@@ -13,8 +13,16 @@
     ".github:main",
     "licolite-community:main"
   ],
+  "policy_profiles": {
+    "common": ["LicoLite/.github", "LicoLite/licolite-community"],
+    "platform": ["LicoLite/licolite"],
+    "skills": ["LicoLite/licolite-skills"],
+    "website": ["LicoLite/licolite.com"]
+  },
   "current_gate_scope": [
     "single latest only branch source-of-truth enforcement",
+    "common baseline policy for all public repositories",
+    "repository-specific policy profiles for platform, website, and skills repositories",
     "data files denied by default unless explicitly allowlisted as schema-checked project configuration",
     "fixed configuration directories restricted to schema-checked JSON only",
     "user, customer, contact, account, or people record-shaped JSON blocked even in allowlisted paths",

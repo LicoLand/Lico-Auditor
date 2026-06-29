@@ -15,14 +15,37 @@ branch, and run the gate from the latest `only` HEAD before any target scan.
 ## Commands
 
 ```sh
-bin/licolite-audit gate --repo ../licolite --history
-bin/licolite-audit report --repo ../licolite --history --format json
+bin/licolite-audit gate --repo ../licolite --profile platform --history
+bin/licolite-audit report --repo ../licolite --profile platform --history --format json
 bin/licolite-audit github-surface --all-targets
 bin/licolite-audit source-of-truth --repo . --require-current-head --enforce-remote-heads
 ```
 
 `gate` is suitable for CI. `report` emits a structured JSON payload. Neither
 command prints the matched sensitive value.
+
+## Policy Profiles
+
+Every repository runs the `common` baseline: source-of-truth checks, data-file
+default denial, user-record shape blocking, host/IP restrictions, secrets,
+local paths, operational endpoints, and GitHub surface checks.
+
+Repository-specific profiles only define what engineering files are allowed:
+
+- `platform` for `LicoLite/licolite`: admits the platform's fixed configuration
+  and registry JSON directories, and requires schema-like object shape there.
+- `website` for `LicoLite/licolite.com`: admits only common website/build
+  metadata such as package and TypeScript config JSON; arbitrary content/data
+  JSON is denied by default.
+- `skills` for `LicoLite/licolite-skills`: admits skill template JSON assets
+  and common build metadata; operational or customer-like data files remain
+  denied.
+- `common` for organization/community support repositories: no product-specific
+  config paths are inherited.
+
+Actions that checkout a target into a generic path such as `target/` must pass
+`--profile` explicitly. In a normal repository checkout, `auto` maps known repo
+names to the correct profile.
 
 ## Current Gate Scope
 

@@ -21,18 +21,25 @@ jobs:
         target:
           - repository: LicoLite/licolite
             branch: nightly
+            profile: platform
           - repository: LicoLite/licolite
             branch: stable
+            profile: platform
           - repository: LicoLite/licolite
             branch: release
+            profile: platform
           - repository: LicoLite/licolite-skills
             branch: main
+            profile: skills
           - repository: LicoLite/licolite.com
             branch: main
+            profile: website
           - repository: LicoLite/.github
             branch: main
+            profile: common
           - repository: LicoLite/licolite-community
             branch: main
+            profile: common
     steps:
       - name: Checkout audit gate
         uses: actions/checkout@v5
@@ -68,6 +75,7 @@ jobs:
         run: |
           licolite-audit/bin/licolite-audit gate \
             --repo target \
+            --profile ${{ matrix.target.profile }} \
             --history \
             --format text
 

@@ -305,6 +305,77 @@ class Rule:
     should_report: Callable[[str, str], bool] | None = None
 
 
+@dataclass(frozen=True)
+class ProjectPolicy:
+    policy_id: str
+    description: str
+    allowed_json_file_names: frozenset[str]
+    allowed_json_path_patterns: tuple[str, ...]
+    strict_json_config_prefixes: tuple[str, ...] = ()
+    json_template_prefixes: tuple[str, ...] = ()
+    shape_marker_keys: frozenset[str] = frozenset(CONFIG_SHAPE_MARKER_KEYS)
+
+
+COMMON_JSON_PATH_PATTERNS = (
+    r"modules/[^/]+/module\.json",
+    r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
+)
+SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
+    r"(?:licolite/)?content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/[^/]+\.template\.json",
+)
+PROJECT_POLICIES = {
+    "common": ProjectPolicy(
+        policy_id="common",
+        description="Common privacy gate for all public LicoLite repositories.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS,
+    ),
+    "platform": ProjectPolicy(
+        policy_id="platform",
+        description="Main LicoLite platform repository policy.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
+        strict_json_config_prefixes=STRICT_JSON_CONFIG_PREFIXES,
+        json_template_prefixes=JSON_TEMPLATE_PREFIXES,
+    ),
+    "website": ProjectPolicy(
+        policy_id="website",
+        description="Static website repository policy.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS,
+    ),
+    "skills": ProjectPolicy(
+        policy_id="skills",
+        description="Operational skills repository policy.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
+        json_template_prefixes=(
+            "content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
+            "licolite/content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
+        ),
+    ),
+}
+REPOSITORY_POLICY_ALIASES = {
+    ".github": "common",
+    "licolite": "platform",
+    "licolite-audit": "common",
+    "licolite-community": "common",
+    "licolite-skills": "skills",
+    "licolite.com": "website",
+}
+
+
+def policy_for_profile(profile: str | None) -> ProjectPolicy:
+    profile_id = (profile or "common").strip().lower()
+    if profile_id in {"", "auto"}:
+        profile_id = "common"
+    return PROJECT_POLICIES.get(profile_id, PROJECT_POLICIES["common"])
+
+
+def policy_profile_for_repo_name(repo_name: str) -> str:
+    return REPOSITORY_POLICY_ALIASES.get(repo_name, "common")
+
+
 def value_fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8", "replace")).hexdigest()[:16]
 
@@ -318,23 +389,23 @@ def file_policy_fingerprint(relative_path: str, rule_id: str, raw: bytes = b"") 
     return hashlib.sha256(payload).hexdigest()[:16]
 
 
-def is_strict_json_config_path(relative_path: str) -> bool:
+def is_strict_json_config_path(relative_path: str, policy: ProjectPolicy | None = None) -> bool:
     normalized = normalized_repo_path(relative_path)
-    return normalized.startswith(STRICT_JSON_CONFIG_PREFIXES)
+    selected = policy or PROJECT_POLICIES["common"]
+    return normalized.startswith(selected.strict_json_config_prefixes)
 
 
-def is_allowed_json_config_path(relative_path: str) -> bool:
+def is_allowed_json_config_path(relative_path: str, policy: ProjectPolicy | None = None) -> bool:
+    selected = policy or PROJECT_POLICIES["common"]
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
-    if name in ALLOWED_JSON_FILE_NAMES:
+    if name in selected.allowed_json_file_names:
         return True
-    if re.fullmatch(r"modules/[^/]+/module\.json", normalized):
+    if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
         return True
-    if re.fullmatch(r"tsconfig\.[a-z0-9_.-]+\.json", name):
+    if is_strict_json_config_path(normalized, selected):
         return True
-    if is_strict_json_config_path(normalized):
-        return True
-    if normalized.startswith(JSON_TEMPLATE_PREFIXES):
+    if normalized.startswith(selected.json_template_prefixes):
         return name.endswith((".json", ".template.json", ".config.json"))
     return False
 
@@ -369,7 +440,8 @@ def looks_like_user_record_collection(data: object) -> bool:
     return False
 
 
-def is_allowed_json_config_shape(relative_path: str, data: object) -> bool:
+def is_allowed_json_config_shape(relative_path: str, data: object, policy: ProjectPolicy | None = None) -> bool:
+    selected = policy or PROJECT_POLICIES["common"]
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
     if not isinstance(data, dict):
@@ -386,15 +458,16 @@ def is_allowed_json_config_shape(relative_path: str, data: object) -> bool:
     if normalized.startswith("tools/registry/schema/") and name.endswith(".schema.json"):
         return {"$schema", "type"} <= keys and "properties" in keys
     if normalized.startswith("tools/registry/"):
-        return bool(keys & CONFIG_SHAPE_MARKER_KEYS)
-    if normalized.startswith(STRICT_JSON_CONFIG_PREFIXES):
-        return bool(keys & CONFIG_SHAPE_MARKER_KEYS)
-    if normalized.startswith(JSON_TEMPLATE_PREFIXES):
-        return bool(keys & CONFIG_SHAPE_MARKER_KEYS)
+        return bool(keys & selected.shape_marker_keys)
+    if is_strict_json_config_path(normalized, selected):
+        return bool(keys & selected.shape_marker_keys)
+    if normalized.startswith(selected.json_template_prefixes):
+        return bool(keys & selected.shape_marker_keys)
     return False
 
 
-def file_policy_violations(relative_path: str, raw: bytes) -> list[tuple[str, str, str, str]]:
+def file_policy_violations(relative_path: str, raw: bytes, profile: str | None = None) -> list[tuple[str, str, str, str]]:
+    policy = policy_for_profile(profile)
     normalized = normalized_repo_path(relative_path)
     suffix = Path(normalized).suffix.lower()
     findings: list[tuple[str, str, str, str]] = []
@@ -402,10 +475,10 @@ def file_policy_violations(relative_path: str, raw: bytes) -> list[tuple[str, st
     def add(rule_id: str, message: str, evidence_class: str) -> None:
         findings.append((rule_id, message, evidence_class, file_policy_fingerprint(normalized, rule_id, raw)))
 
-    if is_strict_json_config_path(normalized) and suffix != ".json":
+    if is_strict_json_config_path(normalized, policy) and suffix != ".json":
         add(
             "config-directory-non-json-file",
-            "Fixed project configuration directories may contain only schema-checked JSON files.",
+            f"{policy.policy_id} fixed configuration directories may contain only schema-checked JSON files.",
             "data-file-policy",
         )
         return findings
@@ -429,10 +502,10 @@ def file_policy_violations(relative_path: str, raw: bytes) -> list[tuple[str, st
     if suffix != ".json":
         return findings
 
-    if not is_allowed_json_config_path(normalized):
+    if not is_allowed_json_config_path(normalized, policy):
         add(
             "json-data-file-not-allowlisted",
-            "JSON files are denied by default unless they are approved project configuration, registry, manifest, or template files.",
+            f"JSON files are denied by default under the {policy.policy_id} policy unless they are approved project configuration, registry, manifest, or template files.",
             "data-file-policy",
         )
         return findings
@@ -454,10 +527,10 @@ def file_policy_violations(relative_path: str, raw: bytes) -> list[tuple[str, st
             "user-data",
         )
 
-    if not is_allowed_json_config_shape(normalized, data):
+    if not is_allowed_json_config_shape(normalized, data, policy):
         add(
             "json-config-shape-invalid",
-            "Allowlisted JSON files must match the expected project configuration or registry object shape.",
+            f"Allowlisted JSON files must match the expected {policy.policy_id} project configuration or registry object shape.",
             "data-file-policy",
         )
 
@@ -823,10 +896,11 @@ RULES = [
 ]
 
 
-def should_scan_file(path: Path) -> bool:
+def should_scan_file(path: Path, profile: str | None = None) -> bool:
     if any(part in IGNORED_DIR_NAMES for part in path.parts):
         return False
-    if is_strict_json_config_path(path.as_posix()):
+    policy = policy_for_profile(profile)
+    if is_strict_json_config_path(path.as_posix(), policy):
         return True
     if path.suffix.lower() in DATA_FILE_EXTENSIONS:
         return True
@@ -835,7 +909,7 @@ def should_scan_file(path: Path) -> bool:
     return path.suffix.lower() in TEXT_EXTENSIONS
 
 
-def iter_text_files(root: Path) -> Iterable[Path]:
+def iter_text_files(root: Path, profile: str | None = None) -> Iterable[Path]:
     for path in root.rglob("*"):
-        if path.is_file() and should_scan_file(path.relative_to(root)):
+        if path.is_file() and should_scan_file(path.relative_to(root), profile):
             yield path
