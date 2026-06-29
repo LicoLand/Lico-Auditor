@@ -60,6 +60,14 @@ def credential_url() -> str:
     return "postgres" + "://user:password@localhost/db"
 
 
+def system_path() -> str:
+    return "/" + "etc/ssh/sshd_config"
+
+
+def cloud_host_label() -> str:
+    return "lico" + "-host"
+
+
 class PrivacyGateTests(unittest.TestCase):
     def test_finding_redacts_value_and_keeps_fingerprint(self) -> None:
         leaked_path = macos_home_path("example/private")
@@ -118,6 +126,16 @@ class PrivacyGateTests(unittest.TestCase):
         findings = scan_text("fixture.txt", credential_url())
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "credential-url")
+
+    def test_system_and_deployment_paths_fail(self) -> None:
+        findings = scan_text("deployment/production/readme.md", system_path())
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "system-or-deployment-path")
+
+    def test_cloud_server_provisioning_assignment_fails(self) -> None:
+        findings = scan_text("tools/scripts/vultr-ip-finder.ps1", f"Hostname={cloud_host_label()}")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "cloud-server-provisioning-setting")
 
     def test_provider_uuid_only_fails_in_deployment_material(self) -> None:
         uuid = "123e4567-e89b-12d3-a456-426614174000"

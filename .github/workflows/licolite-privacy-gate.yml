@@ -29,6 +29,16 @@ jobs:
             branch: main
           - repository: LicoLite/licolite.com
             branch: main
+          - repository: LicoLite/.github
+            branch: main
+          - repository: LicoLite/licolite-community
+            branch: main
+          - repository: LicoLite/licolite-deprecated
+            branch: main
+          - repository: LicoLite/licolite-deprecated
+            branch: nightly
+          - repository: LicoLite/licolite-deprecated
+            branch: stable
     steps:
       - name: Checkout audit gate
         uses: actions/checkout@v5

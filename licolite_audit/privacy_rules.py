@@ -76,10 +76,16 @@ MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
 GITHUB_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.git"])
 GITHUB_SKILLS_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-skills.git"])
 GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.com.git"])
+GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLite/.github.git"])
+GITHUB_COMMUNITY_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-community.git"])
+GITHUB_DEPRECATED_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-deprecated.git"])
 AUDITED_GITHUB_REMOTES = {
     "licolite": GITHUB_REMOTE,
     "licolite-skills": GITHUB_SKILLS_REMOTE,
     "licolite.com": GITHUB_SITE_REMOTE,
+    ".github": GITHUB_ORG_PROFILE_REMOTE,
+    "licolite-community": GITHUB_COMMUNITY_REMOTE,
+    "licolite-deprecated": GITHUB_DEPRECATED_REMOTE,
 }
 ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
 ALLOWED_DOMAIN_SUFFIXES = ("licolite.com", "licolite.app")
@@ -102,9 +108,17 @@ KEY_VALUE_HOST_PATTERN = _join([
     r")",
 ])
 SSH_ENDPOINT_PATTERN = _join([r"\b[A-Za-z0-9._-]+@", LOCAL_OR_DOMAIN_HOST_PATTERN, REQUIRED_PORT_PATTERN, r"\b"])
+SYSTEM_PATH_PATTERN = re.compile(
+    r"(?<![:/A-Za-z0-9_.-])/(?:etc|home|opt|private/tmp|root|srv|tmp|usr/local|var)(?:/[^\s`'\"),;]*)?",
+    re.IGNORECASE,
+)
 PRIVATE_KEY_BLOCK_PATTERN = re.compile(_join(["-----BEGIN ", r"(?:[A-Z0-9]+ )?PRIVATE KEY", "-----"]))
 SECRET_ASSIGNMENT_PATTERN = re.compile(
     r"\b(?:api[_-]?key|app[_-]?secret|auth[_-]?token|bearer[_-]?token|client[_-]?secret|connection[_-]?string|credential|db[_-]?password|password|passwd|private[_-]?key|refresh[_-]?token|secret|secret[_-]?key|service[_-]?token|signing[_-]?key|token)\b\s*[:=]\s*[\"']?[^\s\"'#]{16,}",
+    re.IGNORECASE,
+)
+OPS_HOST_ASSIGNMENT_PATTERN = re.compile(
+    r"\b(?:host|hostname|label|name|server|server_name)\b\s*[:=]\s*[\"']?[A-Za-z0-9][A-Za-z0-9._-]{2,}",
     re.IGNORECASE,
 )
 AUTH_HEADER_PATTERN = re.compile(
@@ -210,6 +224,16 @@ def is_production_ssh_endpoint(value: str, _relative_path: str) -> bool:
 def is_deployment_provider_resource_id(_value: str, relative_path: str) -> bool:
     normalized = relative_path.lower().replace("\\", "/")
     return normalized.startswith("deployment/production/") or normalized.endswith("/vultr-ip-finder.ps1")
+
+
+def is_cloud_server_provisioning_assignment(value: str, relative_path: str) -> bool:
+    normalized_path = relative_path.lower().replace("\\", "/")
+    if not normalized_path.endswith("/vultr-ip-finder.ps1"):
+        return False
+    candidate = _candidate_secret_value(value).strip().lower()
+    if not candidate or candidate.startswith(("<", "{", "$", "%")):
+        return False
+    return "placeholder" not in candidate and "example" not in candidate
 
 
 def _candidate_secret_value(value: str) -> str:
@@ -336,6 +360,21 @@ RULES = [
         re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE),
         "provider-resource-id",
         is_deployment_provider_resource_id,
+    ),
+    Rule(
+        "cloud-server-provisioning-setting",
+        "high-risk",
+        "Cloud server provisioning host, label, or name defaults must not be committed.",
+        OPS_HOST_ASSIGNMENT_PATTERN,
+        "ops-metadata",
+        is_cloud_server_provisioning_assignment,
+    ),
+    Rule(
+        "system-or-deployment-path",
+        "high-risk",
+        "Absolute server, container, deployment, or developer toolchain paths must not be committed.",
+        SYSTEM_PATH_PATTERN,
+        "local-path",
     ),
     Rule(
         "developer-macos-home-path",
