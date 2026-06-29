@@ -277,7 +277,8 @@ AUDITED_GITHUB_REMOTES = {
     ".github": GITHUB_ORG_PROFILE_REMOTE,
     "licolite-community": GITHUB_COMMUNITY_REMOTE,
 }
-ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
+ALLOWED_HOSTS = {"localhost", "0.0.0.0", "127.0.0.1", "::1"}
+ALLOWED_IPV4_LITERALS = {"0.0.0.0", "127.0.0.1"}
 ALLOWED_DOMAIN_SUFFIXES = ("licolite.com", "licolite.app")
 CODE_LIKE_HOST_FINAL_LABELS = {
     "argv",
@@ -897,7 +898,7 @@ def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
         address = ipaddress.ip_address(value)
     except ValueError:
         return False
-    return address.version == 4 and str(address) != "127.0.0.1"
+    return address.version == 4 and str(address) not in ALLOWED_IPV4_LITERALS
 
 
 def is_non_loopback_ipv6(value: str, _relative_path: str) -> bool:
@@ -1234,7 +1235,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost for local loopback or an allowed LicoLite domain.",
+        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed LicoLite domain.",
         re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b"),
         "network-location",
         is_non_loopback_ipv4,

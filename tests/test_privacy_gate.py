@@ -32,6 +32,10 @@ def loopback_ipv4() -> str:
     return ".".join(["127", "0", "0", "1"])
 
 
+def wildcard_ipv4() -> str:
+    return ".".join(["0", "0", "0", "0"])
+
+
 def loopback_ipv6() -> str:
     return ":" * 2 + "1"
 
@@ -95,7 +99,7 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings, [])
 
     def test_loopback_ip_literals_pass(self) -> None:
-        text = " ".join([loopback_ipv4(), loopback_ipv6()])
+        text = " ".join([wildcard_ipv4(), loopback_ipv4(), loopback_ipv6()])
         self.assertEqual(scan_text("fixture.txt", text), [])
 
     def test_ipv6_rule_ignores_language_separators(self) -> None:
