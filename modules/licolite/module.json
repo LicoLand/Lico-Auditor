@@ -1,0 +1,18 @@
+{
+  "module_id": "licolite",
+  "module_type": "project",
+  "project_ids": ["licolite"],
+  "target_repository": "LicoLite/licolite",
+  "audit_source_branch": "only",
+  "target_branches": ["nightly", "stable", "release"],
+  "current_gate_scope": [
+    "single latest only branch source-of-truth enforcement",
+    "developer workstation and workspace paths",
+    "all non-loopback IP literals",
+    "domains outside localhost, licolite.com, and licolite.app",
+    "private keys, credential URLs, JWTs, cloud access tokens, and secret assignments",
+    "admin SSH endpoints and access metadata",
+    "known previously leaked local-path and retired-domain markers",
+    "GitHub pull refs after clean repository publication"
+  ]
+}
