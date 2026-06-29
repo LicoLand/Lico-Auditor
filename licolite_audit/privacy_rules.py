@@ -74,6 +74,13 @@ def _join(parts: Iterable[str]) -> str:
 
 MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
 GITHUB_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.git"])
+GITHUB_SKILLS_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-skills.git"])
+GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.com.git"])
+AUDITED_GITHUB_REMOTES = {
+    "licolite": GITHUB_REMOTE,
+    "licolite-skills": GITHUB_SKILLS_REMOTE,
+    "licolite.com": GITHUB_SITE_REMOTE,
+}
 ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
 ALLOWED_DOMAIN_SUFFIXES = ("licolite.com", "licolite.app")
 COLON = ":"

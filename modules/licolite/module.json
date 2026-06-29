@@ -1,10 +1,10 @@
 {
   "module_id": "licolite",
   "module_type": "project",
-  "project_ids": ["licolite"],
-  "target_repository": "LicoLite/licolite",
+  "project_ids": ["licolite", "licolite-skills", "licolite.com"],
+  "target_repositories": ["LicoLite/licolite", "LicoLite/licolite-skills", "LicoLite/licolite.com"],
   "audit_source_branch": "only",
-  "target_branches": ["nightly", "stable", "release"],
+  "target_branches": ["licolite:nightly", "licolite:stable", "licolite:release", "licolite-skills:main", "licolite.com:main"],
   "current_gate_scope": [
     "single latest only branch source-of-truth enforcement",
     "developer workstation and workspace paths",

@@ -18,7 +18,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [nightly, stable, release]
+        target:
+          - repository: LicoLite/licolite
+            branch: nightly
+          - repository: LicoLite/licolite
+            branch: stable
+          - repository: LicoLite/licolite
+            branch: release
+          - repository: LicoLite/licolite-skills
+            branch: main
+          - repository: LicoLite/licolite.com
+            branch: main
     steps:
       - name: Checkout audit gate
         uses: actions/checkout@v5
@@ -40,8 +50,8 @@ jobs:
       - name: Checkout LicoLite target
         uses: actions/checkout@v5
         with:
-          repository: LicoLite/licolite
-          ref: ${{ matrix.branch }}
+          repository: ${{ matrix.target.repository }}
+          ref: ${{ matrix.target.branch }}
           fetch-depth: 0
           path: target
 
@@ -80,4 +90,4 @@ jobs:
         with:
           python-version: "3.13"
       - name: Ensure clean GitHub pull-ref surface
-        run: bin/licolite-audit github-surface
+        run: bin/licolite-audit github-surface --all-targets

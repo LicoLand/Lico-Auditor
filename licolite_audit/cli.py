@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .models import AuditReport, AuditTarget, Finding
-from .privacy_rules import GITHUB_REMOTE
+from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_REMOTE
 from .report import emit_findings, emit_report
 from .scanner import remote_pull_refs, scan_history, scan_worktree
 
@@ -56,23 +56,26 @@ def command_report(args: argparse.Namespace) -> int:
 
 def command_github_surface(args: argparse.Namespace) -> int:
     findings: list[Finding] = []
-    try:
-        pull_refs = remote_pull_refs(args.remote)
-    except RuntimeError as exc:
-        return emit_findings([Finding("error", "remote-query-failed", str(exc))], fmt=args.format)
-    if pull_refs:
-        for item in pull_refs:
-            sha, ref = item.split(maxsplit=1)
-            findings.append(
-                Finding(
-                    severity="high-risk",
-                    rule="github-pull-ref-present",
-                    message="GitHub pull request refs are reachable. For a freshly published clean repository this surface must be empty.",
-                    path=ref,
-                    fingerprint=sha[:16],
-                    evidence_class="github-ref",
+    targets = AUDITED_GITHUB_REMOTES if args.all_targets else {"target": args.remote}
+    for target_name, remote in targets.items():
+        try:
+            pull_refs = remote_pull_refs(remote)
+        except RuntimeError as exc:
+            findings.append(Finding("error", "remote-query-failed", str(exc), path=target_name))
+            continue
+        if pull_refs:
+            for item in pull_refs:
+                sha, ref = item.split(maxsplit=1)
+                findings.append(
+                    Finding(
+                        severity="high-risk",
+                        rule="github-pull-ref-present",
+                        message="GitHub pull request refs are reachable. For a freshly published clean repository this surface must be empty.",
+                        path=f"{target_name}:{ref}",
+                        fingerprint=sha[:16],
+                        evidence_class="github-ref",
+                    )
                 )
-            )
     return emit_findings(findings, fmt=args.format)
 
 
@@ -204,6 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     surface = sub.add_parser("github-surface", help="Check GitHub remote surfaces that should be absent in a clean public repo.")
     surface.add_argument("--remote", default=DEFAULT_REMOTE)
+    surface.add_argument("--all-targets", action="store_true", help="Check all configured LicoLite target repositories.")
     surface.add_argument("--format", choices=("text", "json"), default="text")
     surface.set_defaults(func=command_github_surface)
 

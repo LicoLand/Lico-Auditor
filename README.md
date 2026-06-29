@@ -5,6 +5,8 @@ External privacy and release audit gate for LicoLite.
 The framework is intentionally outside the target repository. It checks the
 target checkout as data, reports only redacted evidence, and fails when privacy
 or local-info leakage is reachable from public branches.
+It currently governs `LicoLite/licolite`, `LicoLite/licolite-skills`, and
+`LicoLite/licolite.com`.
 
 The `only` branch is the sole source of truth. CI jobs must checkout
 `LicoLite/licolite-audit@only`, verify that the remote exposes no other audit
@@ -15,7 +17,7 @@ branch, and run the gate from the latest `only` HEAD before any target scan.
 ```sh
 bin/licolite-audit gate --repo ../licolite --history
 bin/licolite-audit report --repo ../licolite --history --format json
-bin/licolite-audit github-surface
+bin/licolite-audit github-surface --all-targets
 bin/licolite-audit source-of-truth --repo . --require-current-head --enforce-remote-heads
 ```
 

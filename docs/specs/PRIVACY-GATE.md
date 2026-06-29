@@ -3,6 +3,8 @@
 `licolite-audit` is an external audit gate for `LicoLite/licolite`.
 The audit repository is governed by a single `only` branch. All Actions must
 run the latest `only` HEAD and fail if any other audit branch is reachable.
+The current governed targets are `LicoLite/licolite`, `LicoLite/licolite-skills`,
+and `LicoLite/licolite.com`.
 
 The current policy blocks public release when reachable worktree content, git
 history, or GitHub surfaces expose:
