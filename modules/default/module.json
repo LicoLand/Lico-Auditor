@@ -1,5 +1,5 @@
 {
   "module_id": "default",
   "module_type": "default",
-  "description": "Default LicoLite external audit policy. Current focus: strict source-of-truth, secret, host, IP, privacy, and local-info leakage gate."
+  "description": "Default external audit policy for governed LicoMesh and LicoArc repositories. Current focus: strict source-of-truth, secret, host, IP, privacy, and local-info leakage gate."
 }

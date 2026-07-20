@@ -1,24 +1,27 @@
-# licolite-audit
+# Lico-Auditor
 
-External privacy and release audit gate for LicoLite.
+External privacy and release audit gate for governed LicoMesh and LicoArc
+repositories.
 
 The framework is intentionally outside the target repository. It checks the
 target checkout as data, reports only redacted evidence, and fails when privacy
 or local-info leakage is reachable from public branches.
-It currently governs `LicoLite/licolite`, `LicoLite/licolite-skills`, and
-`LicoLite/licolite.com`.
+It currently governs `LicoLand/LicoMesh`, `LicoLand/LicoArc`,
+`LicoLand/licomesh-dev`, `LicoLand/licomesh.com`, `LicoLand/.github`, and
+`LicoLand/licomesh-community`.
 
 The `only` branch is the sole source of truth. CI jobs must checkout
-`LicoLite/licolite-audit@only`, verify that the remote exposes no other audit
+`LicoLand/Lico-Auditor@only`, verify that the remote exposes no other audit
 branch, and run the gate from the latest `only` HEAD before any target scan.
 
 ## Commands
 
 ```sh
-bin/licolite-audit gate --repo ../licolite --profile platform --history
-bin/licolite-audit report --repo ../licolite --profile platform --history --format json
-bin/licolite-audit github-surface --all-targets
-bin/licolite-audit source-of-truth --repo . --require-current-head --enforce-remote-heads
+bin/lico-auditor gate --repo ../LicoMesh --profile platform --history
+bin/lico-auditor gate --repo ../LicoArc --profile client --history
+bin/lico-auditor report --repo ../LicoMesh --profile platform --history --format json
+bin/lico-auditor github-surface --all-targets
+bin/lico-auditor source-of-truth --repo . --require-current-head --enforce-remote-heads
 ```
 
 `gate` is suitable for CI. `report` emits a structured JSON payload. Neither
@@ -32,14 +35,16 @@ local paths, operational endpoints, and GitHub surface checks.
 
 Repository-specific profiles only define what engineering files are allowed:
 
-- `platform` for `LicoLite/licolite`: admits the platform's fixed configuration
+- `platform` for `LicoLand/LicoMesh`: admits the platform's fixed configuration
   and registry JSON directories, and requires schema-like object shape there.
-- `website` for `LicoLite/licolite.com`: admits only common website/build
+- `client` for `LicoLand/LicoArc`: admits client contracts, desktop assets,
+  native resource manifests, and reviewed client tooling JSON.
+- `website` for `LicoLand/licomesh.com`: admits only common website/build
   metadata such as package and TypeScript config JSON; arbitrary content/data
   JSON is denied by default.
-- `skills` for `LicoLite/licolite-skills`: admits skill template JSON assets
-  and common build metadata; operational or customer-like data files remain
-  denied.
+- `skills` for `LicoLand/licomesh-dev`: admits template JSON only at
+  `skills/*/assets/*.template.json` plus common build metadata; operational or
+  customer-like data files remain denied.
 - `common` for organization/community support repositories: no product-specific
   config paths are inherited.
 
@@ -58,7 +63,7 @@ names to the correct profile.
   template objects, and user/customer/contact/account record-shaped JSON is
   blocked even inside allowlisted paths;
 - any committed IP literal except local loopback;
-- host/domain endpoints outside localhost, licolite.com, and licolite.app;
+- host/domain endpoints outside localhost, licomesh.com, and licomesh.app;
 - production backend/admin endpoint/provider metadata;
 - customer, tenant, contract, revenue, commercial account, and other
   business-confidential values;
@@ -68,7 +73,6 @@ names to the correct profile.
 - private keys, credential URLs, authorization headers, JWTs, cloud access
   tokens, and secret-like configuration assignments;
 - committed SSH public key material;
-- known previously leaked local-path and retired-domain markers;
 - GitHub PR refs after clean repository publication.
 
 Any `high-risk` or `error` finding exits non-zero. There is no warning-only mode

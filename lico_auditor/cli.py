@@ -6,11 +6,11 @@ import sys
 from pathlib import Path
 
 from .models import AuditReport, AuditTarget, Finding
-from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_REMOTE
+from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_CORE_REMOTE
 from .report import emit_findings, emit_report
 from .scanner import remote_pull_refs, scan_history, scan_worktree
 
-DEFAULT_REMOTE = GITHUB_REMOTE
+DEFAULT_REMOTE = GITHUB_CORE_REMOTE
 ONLY_BRANCH = "only"
 
 
@@ -60,8 +60,15 @@ def command_github_surface(args: argparse.Namespace) -> int:
     for target_name, remote in targets.items():
         try:
             pull_refs = remote_pull_refs(remote)
-        except RuntimeError as exc:
-            findings.append(Finding("error", "remote-query-failed", str(exc), path=target_name))
+        except RuntimeError:
+            findings.append(
+                Finding(
+                    "error",
+                    "remote-query-failed",
+                    "Unable to query configured remote pull refs.",
+                    path=target_name,
+                )
+            )
             continue
         if pull_refs:
             for item in pull_refs:
@@ -86,9 +93,9 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
     if not repo_root.exists():
         return emit_findings([Finding("error", "target-missing", "Audit repository checkout does not exist.")], fmt=args.format)
 
-    code, stdout, stderr = git_text(repo_root, ["ls-remote", "--symref", args.remote, "HEAD"])
+    code, stdout, _stderr = git_text(repo_root, ["ls-remote", "--symref", args.remote, "HEAD"])
     if code != 0:
-        findings.append(Finding("error", "audit-remote-unavailable", stderr.strip() or "Unable to inspect audit remote."))
+        findings.append(Finding("error", "audit-remote-unavailable", "Unable to inspect the configured audit remote."))
     else:
         default_ref = ""
         for line in stdout.splitlines():
@@ -107,10 +114,10 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
                 )
             )
 
-    code, stdout, stderr = git_text(repo_root, ["ls-remote", "--heads", args.remote])
+    code, stdout, _stderr = git_text(repo_root, ["ls-remote", "--heads", args.remote])
     remote_heads: dict[str, str] = {}
     if code != 0:
-        findings.append(Finding("error", "audit-remote-heads-unavailable", stderr.strip() or "Unable to inspect audit branches."))
+        findings.append(Finding("error", "audit-remote-heads-unavailable", "Unable to inspect configured audit branches."))
     else:
         for line in stdout.splitlines():
             parts = line.split()
@@ -153,9 +160,9 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
                 )
 
     if args.enforce_local_branches:
-        code, stdout, stderr = git_text(repo_root, ["for-each-ref", "--format=%(refname)", "refs/heads"])
+        code, stdout, _stderr = git_text(repo_root, ["for-each-ref", "--format=%(refname)", "refs/heads"])
         if code != 0:
-            findings.append(Finding("error", "audit-local-branches-unavailable", stderr.strip() or "Unable to inspect local branches."))
+            findings.append(Finding("error", "audit-local-branches-unavailable", "Unable to inspect local audit branches."))
         else:
             local_refs = {line.strip() for line in stdout.splitlines() if line.strip()}
             expected_local = f"refs/heads/{branch}"
@@ -185,7 +192,9 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run LicoLite external privacy audit gates.")
+    parser = argparse.ArgumentParser(
+        description="Run external privacy audit gates for governed LicoMesh and LicoArc repositories."
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     gate = sub.add_parser("gate", help="Run privacy-leak gate against a checked-out repository.")
@@ -193,23 +202,33 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--ref", default="HEAD", help="Git ref to scan when --history is enabled.")
     gate.add_argument("--history", action="store_true", help="Scan reachable git history for the target ref.")
     gate.add_argument("--max-commits", type=int, default=0, help="Limit history scan to the latest N commits; 0 scans all.")
-    gate.add_argument("--profile", default="auto", help="Policy profile: auto, common, platform, website, or skills.")
+    gate.add_argument(
+        "--profile",
+        choices=("auto", "common", "platform", "client", "website", "skills"),
+        default="auto",
+        help="Policy profile: auto, common, platform, client, website, or skills.",
+    )
     gate.add_argument("--format", choices=("text", "json"), default="text")
     gate.set_defaults(func=command_gate)
 
     report = sub.add_parser("report", help="Emit a structured privacy audit report.")
     report.add_argument("--repo", required=True, help="Target repository root.")
-    report.add_argument("--project", default="licolite")
+    report.add_argument("--project", default="lico")
     report.add_argument("--ref", default="HEAD")
     report.add_argument("--history", action="store_true")
     report.add_argument("--max-commits", type=int, default=0)
-    report.add_argument("--profile", default="auto", help="Policy profile: auto, common, platform, website, or skills.")
+    report.add_argument(
+        "--profile",
+        choices=("auto", "common", "platform", "client", "website", "skills"),
+        default="auto",
+        help="Policy profile: auto, common, platform, client, website, or skills.",
+    )
     report.add_argument("--format", choices=("json", "text"), default="json")
     report.set_defaults(func=command_report)
 
     surface = sub.add_parser("github-surface", help="Check GitHub remote surfaces that should be absent in a clean public repo.")
     surface.add_argument("--remote", default=DEFAULT_REMOTE)
-    surface.add_argument("--all-targets", action="store_true", help="Check all configured LicoLite target repositories.")
+    surface.add_argument("--all-targets", action="store_true", help="Check all configured governed target repositories.")
     surface.add_argument("--format", choices=("text", "json"), default="text")
     surface.set_defaults(func=command_github_surface)
 
@@ -234,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         return 130
     except Exception as exc:  # noqa: BLE001
-        print(f"[licolite-audit] error: {exc}", file=sys.stderr)
+        print(f"[lico-auditor] error: unexpected {type(exc).__name__}", file=sys.stderr)
         return 2
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -16,6 +17,10 @@ from .privacy_rules import (
 )
 
 
+SVG_PATH_DATA_ATTR_PATTERN = re.compile(r"""(?is)\bd\s*=\s*(["'])(.*?)\1""")
+SVG_PATH_DATA_SUFFIXES = {".html", ".svg", ".tsx", ".vue"}
+
+
 def line_column(text: str, index: int) -> tuple[int, int]:
     line = text.count("\n", 0, index) + 1
     previous_newline = text.rfind("\n", 0, index)
@@ -23,12 +28,31 @@ def line_column(text: str, index: int) -> tuple[int, int]:
     return line, column
 
 
+def mask_svg_path_data(relative_path: str, text: str) -> str:
+    if Path(relative_path).suffix.lower() not in SVG_PATH_DATA_SUFFIXES:
+        return text
+
+    def mask(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        value_start = match.start(2) - match.start(0)
+        value_end = match.end(2) - match.start(0)
+        return f"{raw[:value_start]}{' ' * (value_end - value_start)}{raw[value_end:]}"
+
+    return SVG_PATH_DATA_ATTR_PATTERN.sub(mask, text)
+
+
 def scan_text(relative_path: str, text: str, *, commit: str = "") -> list[Finding]:
     findings: list[Finding] = []
+    svg_path_masked_text: str | None = None
     for rule in RULES:
         if not should_scan_text_rule(rule.rule_id, relative_path):
             continue
-        for match in rule.pattern.finditer(text):
+        scan_source = text
+        if rule.rule_id == "ip-literal":
+            if svg_path_masked_text is None:
+                svg_path_masked_text = mask_svg_path_data(relative_path, text)
+            scan_source = svg_path_masked_text
+        for match in rule.pattern.finditer(scan_source):
             value = match.group(0)
             if "<" in value and ">" in value and rule.rule_id != "operational-endpoint-url":
                 continue
@@ -106,7 +130,8 @@ def _commit_blobs(repo_root: Path, commit: str, *, profile: str | None = None) -
         return [], Finding(
             severity="error",
             rule="git-tree-unavailable",
-            message=tree.stderr.decode("utf-8", "replace").strip() or "Unable to enumerate commit tree.",
+            message="Unable to enumerate the requested commit tree.",
+            fingerprint=value_fingerprint(tree.stderr.decode("utf-8", "replace")),
             commit=commit,
         )
     blobs: list[tuple[bytes, str]] = []
@@ -160,7 +185,8 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0, pr
             Finding(
                 severity="error",
                 rule="git-history-unavailable",
-                message=revs.stderr.decode("utf-8", "replace").strip() or f"Unable to enumerate history for {ref}.",
+                message="Unable to enumerate the requested git history.",
+                fingerprint=value_fingerprint(revs.stderr.decode("utf-8", "replace")),
             )
         ]
     commits = [line for line in revs.stdout.decode("utf-8").splitlines() if line]
@@ -196,5 +222,5 @@ def remote_pull_refs(remote_url: str) -> list[str]:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.decode("utf-8", "replace").strip() or "Unable to query remote pull refs.")
+        raise RuntimeError("Unable to query remote pull refs.")
     return [line.strip() for line in result.stdout.decode("utf-8", "replace").splitlines() if line.strip()]
