@@ -34,7 +34,7 @@ class Finding:
 @dataclass(frozen=True)
 class AuditTarget:
     repo_root: Path
-    project: str = "licolite"
+    project: str = "lico"
     ref: str = "worktree"
 
 
@@ -42,7 +42,7 @@ class AuditTarget:
 class AuditReport:
     target: AuditTarget
     findings: list[Finding] = field(default_factory=list)
-    report_version: str = "v0.1:licolite-audit-report"
+    report_version: str = "v0.1:lico-auditor-report"
 
     @property
     def failed(self) -> bool:

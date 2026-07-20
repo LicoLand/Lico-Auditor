@@ -1,39 +1,59 @@
 {
-  "module_id": "licolite",
+  "module_id": "licomesh",
   "module_type": "project",
-  "project_ids": ["licolite", "licolite-skills", "licolite.com", ".github", "licolite-community"],
-  "target_repositories": ["LicoLite/licolite", "LicoLite/licolite-skills", "LicoLite/licolite.com", "LicoLite/.github", "LicoLite/licolite-community"],
+  "project_ids": [
+    "LicoMesh",
+    "licomesh-dev",
+    "licomesh.com",
+    ".github",
+    "licomesh-community"
+  ],
+  "target_repositories": [
+    "LicoLand/LicoMesh",
+    "LicoLand/licomesh-dev",
+    "LicoLand/licomesh.com",
+    "LicoLand/.github",
+    "LicoLand/licomesh-community"
+  ],
   "audit_source_branch": "only",
   "target_branches": [
-    "licolite:nightly",
-    "licolite:stable",
-    "licolite:release",
-    "licolite-skills:main",
-    "licolite.com:main",
+    "LicoMesh:nightly",
+    "LicoMesh:stable",
+    "LicoMesh:release",
+    "licomesh-dev:main",
+    "licomesh.com:main",
     ".github:main",
-    "licolite-community:main"
+    "licomesh-community:main"
   ],
   "policy_profiles": {
-    "common": ["LicoLite/.github", "LicoLite/licolite-community"],
-    "platform": ["LicoLite/licolite"],
-    "skills": ["LicoLite/licolite-skills"],
-    "website": ["LicoLite/licolite.com"]
+    "common": [
+      "LicoLand/.github",
+      "LicoLand/licomesh-community"
+    ],
+    "platform": [
+      "LicoLand/LicoMesh"
+    ],
+    "skills": [
+      "LicoLand/licomesh-dev"
+    ],
+    "website": [
+      "LicoLand/licomesh.com"
+    ]
   },
   "current_gate_scope": [
     "single latest only branch source-of-truth enforcement",
     "common baseline policy for all public repositories",
-    "repository-specific policy profiles for platform, website, and skills repositories",
+    "repository-specific policy profiles for platform, website, skills, and common repositories",
     "data files denied by default unless explicitly allowlisted as schema-checked project configuration",
     "fixed configuration directories restricted to schema-checked JSON only",
     "user, customer, contact, account, or people record-shaped JSON blocked even in allowlisted paths",
     "developer workstation and workspace paths",
     "all non-loopback IP literals",
-    "domains outside localhost, licolite.com, and licolite.app",
+    "domains outside localhost, licomesh.com, and licomesh.app",
     "customer, tenant, contract, revenue, commercial account, and business-confidential values",
     "production deployment, cloud resource, backend service, cluster, region, bucket, database, image, registry, and namespace metadata",
     "private keys, credential URLs, JWTs, cloud access tokens, and secret assignments",
     "admin SSH endpoints and access metadata",
-    "known previously leaked local-path and retired-domain markers",
     "GitHub pull refs after clean repository publication"
   ]
 }

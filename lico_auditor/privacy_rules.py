@@ -12,14 +12,30 @@ from typing import Callable, Iterable
 
 
 IGNORED_DIR_NAMES = {
+    ".dart_tool",
     ".git",
+    ".gradle",
     ".pytest_cache",
+    ".pub",
+    ".pub-cache",
     "__pycache__",
     "build",
     "coverage",
     "dist",
+    "ephemeral",
     "node_modules",
+    "pods",
     "target",
+}
+
+IGNORED_FILE_NAMES = {
+    ".flutter-plugins",
+    ".flutter-plugins-dependencies",
+    "flutter_export_environment.sh",
+    "generated_plugin_registrant.cc",
+    "generated_plugin_registrant.h",
+    "generated_plugins.cmake",
+    "local.properties",
 }
 
 TEXT_EXTENSIONS = {
@@ -145,7 +161,6 @@ ALLOWED_NON_JSON_CONFIG_PATHS = {
     "tools/registry/source-layout-manifest.mjs",
 }
 JSON_TEMPLATE_PREFIXES = (
-    "content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
     "fixtures/external-services/",
 )
 ALLOWED_JSON_FILE_NAMES = {
@@ -265,21 +280,23 @@ def _join(parts: Iterable[str]) -> str:
 
 
 MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
-GITHUB_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.git"])
-GITHUB_SKILLS_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-skills.git"])
-GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite.com.git"])
-GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLite/.github.git"])
-GITHUB_COMMUNITY_REMOTE = _join(["https://", "github", ".com/LicoLite/licolite-community.git"])
+GITHUB_CORE_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoMesh.git"])
+GITHUB_LICOARC_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoArc.git"])
+GITHUB_LICOMESH_DEV_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh-dev.git"])
+GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh.com.git"])
+GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLand/.github.git"])
+GITHUB_COMMUNITY_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh-community.git"])
 AUDITED_GITHUB_REMOTES = {
-    "licolite": GITHUB_REMOTE,
-    "licolite-skills": GITHUB_SKILLS_REMOTE,
-    "licolite.com": GITHUB_SITE_REMOTE,
+    "LicoMesh": GITHUB_CORE_REMOTE,
+    "LicoArc": GITHUB_LICOARC_REMOTE,
+    "licomesh-dev": GITHUB_LICOMESH_DEV_REMOTE,
+    "licomesh.com": GITHUB_SITE_REMOTE,
     ".github": GITHUB_ORG_PROFILE_REMOTE,
-    "licolite-community": GITHUB_COMMUNITY_REMOTE,
+    "licomesh-community": GITHUB_COMMUNITY_REMOTE,
 }
 ALLOWED_HOSTS = {"localhost", "0.0.0.0", "127.0.0.1", "::1"}
 ALLOWED_IPV4_LITERALS = {"0.0.0.0", "127.0.0.1"}
-ALLOWED_DOMAIN_SUFFIXES = ("licolite.com", "licolite.app")
+ALLOWED_DOMAIN_SUFFIXES = ("licomesh.com", "licomesh.app")
 CODE_LIKE_HOST_FINAL_LABELS = {
     "argv",
     "arraybuffer",
@@ -326,6 +343,7 @@ PUBLIC_REFERENCE_HOSTS = {
     "desktop.docker.com",
     "developer.android.com",
     "developer.apple.com",
+    "csrc.nist.gov",
     "docs.langchain.com",
     "docs.microsoft.com",
     "downloads.digitalcorpora.org",
@@ -335,6 +353,10 @@ PUBLIC_REFERENCE_HOSTS = {
     "json-schema.org",
     "keepachangelog.com",
     "learn.microsoft.com",
+    "rfc-editor.org",
+    "source.android.com",
+    "specifications.freedesktop.org",
+    "theupdateframework.github.io",
     "modelcontextprotocol.io",
     "nginx.org",
     "nodejs.org",
@@ -354,6 +376,7 @@ PUBLIC_REFERENCE_HOSTS = {
     "www.microsoft.com",
     "www.python.org",
     "www.rust-lang.org",
+    "www.rfc-editor.org",
     "www.w3.org",
 }
 GLOBAL_STANDARD_REFERENCE_HOSTS = {
@@ -367,6 +390,7 @@ PUBLIC_PACKAGE_HOSTS = {
     "repo.maven.apache.org",
     "repo1.maven.org",
     "registry.npmjs.org",
+    "www.npmjs.com",
 }
 PUBLIC_INTEGRATION_HOSTS = {
     "accounts.google.com",
@@ -448,18 +472,14 @@ DATABASE_CREDENTIAL_URL_PATTERN = re.compile(
 OPS_ENDPOINT_URL_PATTERN = re.compile(r"\b(?:https?|wss?)://[^\s`'\"),;]+", re.IGNORECASE)
 
 
-KNOWN_PRIVATE_MARKERS = [
-    _join([MACOS_HOME_PREFIX, "un", "ka"]),
-    _join(["T:", "/DevSpace"]),
-    _join(["T:", "\\", "DevSpace"]),
-    _join(["DevSpace", "/licolite"]),
-    _join(["DevSpace", "\\", "licolite"]),
-    _join(["com.", "un", "ka-malloc.lico"]),
-    _join(["github.com/", "un", "ka/lico"]),
-    _join(["github:", "un", "ka/"]),
-    _join(["un", "ka/LicoLite"]),
-    _join(["licolite", ".dev"]),
-]
+WINDOWS_DEVELOPER_PATH_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_.-])[A-Za-z]:[\\/]"
+    r"(?:(?:Users[\\/][^\\/\s`'\")]+)|"
+    r"(?:(?:[^\\/\s`'\")]+)[\\/])?"
+    r"(?:dev(?:elopment|space)?|projects?|repos(?:itories)?|workspaces?))"
+    r"(?:[\\/][^\s`'\")]+)+",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -489,9 +509,6 @@ COMMON_JSON_PATH_PATTERNS = (
 )
 PLATFORM_JSON_PATH_PATTERNS = (
     r"apps/console/appearance-presets/[^/]+\.json",
-    r"apps/desktop/assets/appearance-presets/[^/]+\.json",
-    r"apps/desktop/macos/runner/assets\.xcassets/appicon\.appiconset/contents\.json",
-    r"apps/desktop/packaging\.modules\.json",
     r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
     r"docs/generated/[^/]+\.generated\.json",
     r"docs/plan/[^/]+\.json",
@@ -499,31 +516,54 @@ PLATFORM_JSON_PATH_PATTERNS = (
     r"packages/[^/]+/manifest\.module\.json",
     r"packages/.+/module\.json",
     r"packages/agents/src/agent-configs/.+\.json",
-    r"packages/contracts/.+\.schema\.json",
+    r"packages/contracts/(?!client/).+\.schema\.json",
     r"packages/foundation/src/version-control/version-registry(?:\.schema)?\.json",
     r"packages/foundation/src/workflow/state-machine/definitions/[^/]+\.json",
     r"packages/servicehub/src/registration/external-service\.example\.json",
     r"tests/objective-test-cases\.json",
 )
 SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
-    r"(?:licolite/)?content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/[^/]+\.template\.json",
+    r"config/developer-intent\.json",
+    r"skills/catalog\.json",
+    r"skills/skills\.lock\.json",
+    r"skills/[^/]+/assets/[^/]+\.template\.json",
+    r"workflows/catalog\.json",
+)
+CLIENT_JSON_PATH_PATTERNS = (
+    r"apps/desktop/assets/agent-render-adapters/[^/]+\.json",
+    r"apps/desktop/assets/appearance-presets/[^/]+\.json",
+    r"apps/desktop/ios/Runner/Assets\.xcassets/.+/Contents\.json",
+    r"apps/desktop/macos/Runner/Assets\.xcassets/.+/Contents\.json",
+    r"apps/desktop/macos/Runner/Assets\.xcassets/.+/SourceManifest\.json",
+    r"apps/desktop/packaging\.modules\.json",
+    r"apps/desktop/test/(?:fixtures|layout)/.+\.json",
+    r"crates/lico-client-native/resources/[^/]+\.json",
+    r"packages/contracts/client/.+\.schema\.json",
+    r"packages/contracts/client/fixtures/.+\.json",
+    r"tools/android-release-toolchain\.json",
+    r"tools/client-[^/]+\.json",
+    r"tools/scripts/config/[^/]+\.json",
 )
 PROJECT_POLICIES = {
     "common": ProjectPolicy(
         policy_id="common",
-        description="Common privacy gate for all public LicoLite repositories.",
+        description="Common privacy gate for governed LicoMesh and LicoArc public repositories.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS,
     ),
     "platform": ProjectPolicy(
         policy_id="platform",
-        description="Main LicoLite platform repository policy.",
+        description="Main LicoMesh Core repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
-        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS
-        + PLATFORM_JSON_PATH_PATTERNS
-        + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + PLATFORM_JSON_PATH_PATTERNS,
         strict_json_config_prefixes=STRICT_JSON_CONFIG_PREFIXES,
         json_template_prefixes=JSON_TEMPLATE_PREFIXES,
+    ),
+    "client": ProjectPolicy(
+        policy_id="client",
+        description="LicoArc client repository policy.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + CLIENT_JSON_PATH_PATTERNS,
     ),
     "website": ProjectPolicy(
         policy_id="website",
@@ -533,22 +573,20 @@ PROJECT_POLICIES = {
     ),
     "skills": ProjectPolicy(
         policy_id="skills",
-        description="Operational skills repository policy.",
+        description="Authoritative licomesh-dev skills repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
-        json_template_prefixes=(
-            "content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
-            "licolite/content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets/",
-        ),
     ),
 }
 REPOSITORY_POLICY_ALIASES = {
     ".github": "common",
-    "licolite": "platform",
-    "licolite-audit": "common",
-    "licolite-community": "common",
-    "licolite-skills": "skills",
-    "licolite.com": "website",
+    "Lico-Auditor": "common",
+    "LicoArc": "client",
+    "LicoMesh": "platform",
+    "lico-auditor": "common",
+    "licomesh-community": "common",
+    "licomesh-dev": "skills",
+    "licomesh.com": "website",
 }
 
 
@@ -819,7 +857,8 @@ def is_public_reference_path(relative_path: str) -> bool:
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
     return (
-        normalized.startswith(("docs/", "apps/desktop/android/", "apps/desktop/linux/", "apps/desktop/windows/"))
+        normalized.startswith(("docs/", "apps/console/", "apps/server/"))
+        or bool(re.fullmatch(r"skills/[^/]+/references/.+", normalized))
         or normalized.startswith(("packages/contracts/", "tools/registry/schema/"))
         or name in {"readme.md", "readme.zh-cn.md", "changelog.md", "contributing.md", "license", "dockerfile"}
         or name in {"package.json", "pubspec.yaml", "analysis_options.yaml"}
@@ -889,10 +928,16 @@ def is_local_tool_service_host(host: str, relative_path: str) -> bool:
     return normalized in {"lico-runtime-download-service"} and is_source_code_path(relative_path)
 
 
+def is_public_github_pages_dns_path(relative_path: str) -> bool:
+    return normalized_repo_path(relative_path) == "dns/cloudflare-github-pages.txt"
+
+
 def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
     if relative_path.endswith(".svg"):
         return False
     if normalized_repo_path(relative_path) == "tools/config-scanner.mjs":
+        return False
+    if is_public_github_pages_dns_path(relative_path):
         return False
     try:
         address = ipaddress.ip_address(value)
@@ -901,7 +946,9 @@ def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
     return address.version == 4 and str(address) not in ALLOWED_IPV4_LITERALS
 
 
-def is_non_loopback_ipv6(value: str, _relative_path: str) -> bool:
+def is_non_loopback_ipv6(value: str, relative_path: str) -> bool:
+    if is_public_github_pages_dns_path(relative_path):
+        return False
     candidate = value.strip("[] \t\r\n.,;)")
     is_bracketed = value.strip().startswith("[") and value.strip().endswith("]")
     if candidate == "::" or (not is_bracketed and re.search(r"[A-Za-z]", candidate)):
@@ -989,7 +1036,12 @@ def is_public_placeholder_value(candidate: str) -> bool:
         return True
     if any(word in lowered for word in placeholder_words):
         return True
-    return "licolite" in lowered or is_allowed_domain(normalized)
+    return (
+        "licomesh" in lowered
+        or "licoarc" in lowered
+        or "lico-auditor" in lowered
+        or is_allowed_domain(normalized)
+    )
 
 
 def is_operational_path(relative_path: str) -> bool:
@@ -1016,9 +1068,30 @@ def is_operational_path(relative_path: str) -> bool:
     )
 
 
+_AUDIT_ENGINE_FILES = frozenset(
+    {
+        "__init__.py",
+        "cli.py",
+        "models.py",
+        "privacy_rules.py",
+        "report.py",
+        "scanner.py",
+    }
+)
+
+
 def is_source_code_path(relative_path: str) -> bool:
     normalized = normalized_repo_path(relative_path)
-    return normalized.startswith(("apps/", "packages/", "crates/", "content/", "src/", "tools/", "licolite_audit/"))
+    if normalized.startswith(
+        ("apps/", "packages/", "crates/", "content/", "src/", "tools/", "lico_auditor/")
+    ):
+        return True
+    parts = normalized.split("/")
+    return (
+        len(parts) == 2
+        and parts[1] in _AUDIT_ENGINE_FILES
+        and (parts[0].endswith("_audit") or parts[0].endswith("_auditor"))
+    )
 
 
 def is_system_or_deployment_path(value: str, relative_path: str) -> bool:
@@ -1029,7 +1102,10 @@ def is_system_or_deployment_path(value: str, relative_path: str) -> bool:
     if normalized in {"docker-compose.yml", "docker-compose.yaml"}:
         return False
     if normalized == "dockerfile" or normalized.endswith("/dockerfile"):
-        return any(marker in lowered_value for marker in ("/etc/ssh", "/root/.ssh", "/srv/"))
+        return any(
+            marker in lowered_value
+            for marker in ("/" + "etc/ssh", "/" + "root/.ssh", "/" + "srv/")
+        )
     if is_source_code_path(normalized):
         return False
     return True
@@ -1175,13 +1251,6 @@ def is_non_placeholder_secret(value: str, relative_path: str) -> bool:
 
 RULES = [
     Rule(
-        "known-private-marker",
-        "high-risk",
-        "Known leaked local-path, old repository, or retired domain marker must not be reachable.",
-        re.compile("|".join(re.escape(item) for item in KNOWN_PRIVATE_MARKERS)),
-        "private-marker",
-    ),
-    Rule(
         "ssh-public-key-material",
         "high-risk",
         "Committed SSH public key material is access metadata; use a placeholder in examples.",
@@ -1235,7 +1304,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed LicoLite domain.",
+        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed LicoMesh domain.",
         re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b"),
         "network-location",
         is_non_loopback_ipv4,
@@ -1243,7 +1312,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost for local loopback or an allowed LicoLite domain.",
+        "IP literals are not allowed in public source; use localhost for local loopback or an allowed LicoMesh domain.",
         re.compile(r"(?<![A-Za-z0-9_.-])(?:\[[0-9a-f:.]+\]|(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]{0,39})(?![A-Za-z0-9_.-])", re.IGNORECASE),
         "network-location",
         is_non_loopback_ipv6,
@@ -1251,7 +1320,7 @@ RULES = [
     Rule(
         "disallowed-domain",
         "high-risk",
-        "Only localhost, licolite.com, licolite.app, and their subdomains are allowed as committed host/domain endpoints.",
+        "Only localhost, licomesh.com, licomesh.app, and their subdomains are allowed as committed host/domain endpoints.",
         re.compile(_join([PROTOCOL_HOST_PATTERN, "|", KEY_VALUE_HOST_PATTERN]), re.IGNORECASE),
         "network-location",
         is_disallowed_domain,
@@ -1267,7 +1336,7 @@ RULES = [
     Rule(
         "operational-endpoint-url",
         "high-risk",
-        "Operational script, deployment, or CI endpoint URLs must use localhost or an allowed LicoLite domain.",
+        "Operational script, deployment, or CI endpoint URLs must use localhost or an allowed LicoMesh domain.",
         OPS_ENDPOINT_URL_PATTERN,
         "network-location",
         is_operational_endpoint_url,
@@ -1320,17 +1389,19 @@ RULES = [
         "local-path",
     ),
     Rule(
-        "developer-workspace-root",
+        "developer-windows-workspace-path",
         "high-risk",
-        "Developer workspace roots must not be reachable in public history.",
-        re.compile(r"\b(?:DevSpace[\\/]+licolite|[A-Za-z]:[\\/][^\s`'\")]*DevSpace[\\/]licolite)\b", re.IGNORECASE),
+        "Developer Windows home or workspace paths must not be reachable in public history.",
+        WINDOWS_DEVELOPER_PATH_PATTERN,
         "local-path",
     ),
 ]
 
 
 def should_scan_file(path: Path, profile: str | None = None) -> bool:
-    if any(part in IGNORED_DIR_NAMES for part in path.parts):
+    if any(part.lower() in IGNORED_DIR_NAMES for part in path.parts):
+        return False
+    if path.name in IGNORED_FILE_NAMES:
         return False
     policy = policy_for_profile(profile)
     if is_strict_json_config_path(path.as_posix(), policy):

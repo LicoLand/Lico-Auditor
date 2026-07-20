@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from licolite_audit.models import AuditReport, AuditTarget
-from licolite_audit.scanner import scan_text, scan_worktree
+from lico_auditor.models import AuditReport, AuditTarget
+from lico_auditor.scanner import resolve_scan_profile, scan_history, scan_text, scan_worktree
 
 
 def macos_home_path(suffix: str) -> str:
@@ -13,11 +13,11 @@ def macos_home_path(suffix: str) -> str:
 
 
 def public_ipv4() -> str:
-    return ".".join(["198", "49", "23", "144"])
+    return ".".join(["198", "51", "100", "42"])
 
 
 def public_ipv6() -> str:
-    return ":".join(["2606", "4700", "4700", "", "1111"])
+    return "[" + ":".join(["2001", "db8", "", "42"]) + "]"
 
 
 def private_ipv4() -> str:
@@ -109,12 +109,29 @@ class PrivacyGateTests(unittest.TestCase):
         findings = scan_text("fixture.txt", f"{public_ipv4()} {private_ipv4()} {documentation_ipv4()} {public_ipv6()}")
         self.assertEqual([item.rule for item in findings], ["ip-literal", "ip-literal", "ip-literal", "ip-literal"])
 
+    def test_public_github_pages_dns_records_are_allowed_only_at_the_canonical_path(self) -> None:
+        records = f"example.test. IN A {public_ipv4()}\nexample.test. IN AAAA {public_ipv6()}"
+        self.assertEqual(scan_text("dns/cloudflare-github-pages.txt", records), [])
+        self.assertEqual(
+            [item.rule for item in scan_text("dns/other-zone.txt", records)],
+            ["ip-literal", "ip-literal"],
+        )
+
     def test_config_scanner_range_table_does_not_self_report(self) -> None:
         text = "blocked = ['10.0.0.0', '203.0.113.255']"
         self.assertEqual(scan_text("tools/config-scanner.mjs", text), [])
 
+    def test_svg_path_data_does_not_create_ip_literal_findings(self) -> None:
+        text = '<svg><path d="M14.08 13.98c.87.65 2.17.22.98-.97"/></svg>'
+        self.assertEqual(scan_text("index.html", text), [])
+
+    def test_html_plain_ip_literals_still_fail(self) -> None:
+        findings = scan_text("index.html", "endpoint=203.0.113.10")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "ip-literal")
+
     def test_allowed_domains_pass(self) -> None:
-        findings = scan_text("fixture.txt", "url=https://licolite.com host=api.licolite.app endpoint=http://localhost:3000")
+        findings = scan_text("fixture.txt", "url=https://licomesh.com host=api.licomesh.app endpoint=http://localhost:3000")
         self.assertEqual(findings, [])
 
     def test_disallowed_domains_fail(self) -> None:
@@ -143,8 +160,12 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
     def test_public_reference_domains_pass_only_in_reference_contexts(self) -> None:
-        self.assertEqual(scan_text("README.md", "https://github.com/LicoLite/licolite"), [])
-        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLite/licolite")
+        self.assertEqual(scan_text("README.md", "https://github.com/LicoLand/LicoMesh"), [])
+        self.assertEqual(scan_text("index.html", "https://www.npmjs.com/package/pactium"), [])
+        self.assertEqual(scan_text("skills/licomesh-dev/references/public.md", "https://github.com/LicoLand/LicoMesh"), [])
+        self.assertEqual(scan_text("skills/licomesh-dev/references/public.md", "https://csrc.nist.gov/pubs/example"), [])
+        self.assertEqual(scan_text("skills/licomesh-dev/references/public.md", "https://www.rfc-editor.org/rfc/example"), [])
+        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/LicoMesh")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
@@ -165,7 +186,7 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "operational-endpoint-url")
 
     def test_allowed_operational_script_endpoint_urls_pass(self) -> None:
-        text = "curl http://localhost:3000/health && curl https://api.licolite.com/health && curl http://<host>:9000/health"
+        text = "curl http://localhost:3000/health && curl https://api.licomesh.com/health && curl http://<host>:9000/health"
         self.assertEqual(scan_text("tools/scripts/probe.sh", text), [])
         self.assertEqual(scan_text("tools/server-scripts/probe.mjs", "fetch('http://lico-runtime-download-service:19080/health')"), [])
 
@@ -195,8 +216,10 @@ class PrivacyGateTests(unittest.TestCase):
         )
 
     def test_production_metadata_placeholders_pass(self) -> None:
-        text = "cluster_name=example-cluster region=${REGION} service_name=licolite"
-        self.assertEqual(scan_text("tools/server-scripts/deploy.sh", text), [])
+        current_text = "cluster_name=example-cluster region=${REGION} service_name=licomesh"
+        ecosystem_text = "service_name=lico-auditor"
+        self.assertEqual(scan_text("tools/server-scripts/deploy.sh", current_text), [])
+        self.assertEqual(scan_text("tools/server-scripts/deploy.sh", ecosystem_text), [])
 
     def test_private_key_material_fails(self) -> None:
         findings = scan_text("key.pem", private_key_marker())
@@ -234,7 +257,7 @@ class PrivacyGateTests(unittest.TestCase):
         text = "resolved=https://registry.npmjs.org/example package=https://github.com/example/project"
         self.assertEqual(scan_text("package-lock.json", text), [])
         self.assertEqual(scan_text("Cargo.lock", text), [])
-        self.assertEqual(scan_text("apps/desktop/pubspec.lock", text), [])
+        self.assertEqual(scan_text("fixtures/package.lock", text), [])
 
     def test_dependency_lockfiles_still_block_credentials(self) -> None:
         findings = scan_text("package-lock.json", credential_url())
@@ -244,7 +267,7 @@ class PrivacyGateTests(unittest.TestCase):
     def test_synthetic_tests_ignore_network_and_system_path_noise(self) -> None:
         text = f"url=https://{disallowed_domain()} {public_ipv4()} path={system_path()}"
         self.assertEqual(scan_text("tests/vitest/server/example.test.mjs", text), [])
-        self.assertEqual(scan_text("apps/desktop/test/example_test.dart", text), [])
+        self.assertEqual(scan_text("fixtures/platform/example_test.mjs", text), [])
 
     def test_synthetic_tests_still_block_real_secret_shapes(self) -> None:
         findings = scan_text("tests/vitest/server/example.test.mjs", f"client_secret={opaque_secret_value()}")
@@ -264,13 +287,28 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "developer-macos-home-path")
 
+    def test_generic_windows_developer_paths_fail_without_private_markers(self) -> None:
+        findings = scan_text("README.md", "path=C:\\Users\\example\\Projects\\sample-app\\config.json")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "developer-windows-workspace-path")
+
+    def test_git_failure_reports_do_not_echo_local_runtime_data(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            findings = scan_history(root)
+        self.assertEqual(len(findings), 1)
+        rendered = findings[0].to_dict()
+        self.assertEqual(rendered["rule"], "git-history-unavailable")
+        self.assertNotIn(raw, str(rendered))
+        self.assertTrue(rendered["fingerprint"])
+
     def test_system_and_deployment_paths_fail(self) -> None:
         findings = scan_text("deployment/production/readme.md", system_path())
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "system-or-deployment-path")
 
     def test_source_code_generic_system_paths_pass(self) -> None:
-        findings = scan_text("packages/foundation/src/path-defaults.mjs", "const tmp = '/tmp/licolite';")
+        findings = scan_text("packages/foundation/src/path-defaults.mjs", "const tmp = '/tmp/licomesh';")
         self.assertEqual(findings, [])
 
     def test_local_compose_container_paths_pass(self) -> None:
@@ -296,10 +334,11 @@ class PrivacyGateTests(unittest.TestCase):
             self.assertEqual(scan_worktree(root), [])
 
     def test_report_target_does_not_emit_absolute_path(self) -> None:
-        local_path = macos_home_path("example/licolite")
+        local_path = macos_home_path("example/licomesh")
         report = AuditReport(AuditTarget(repo_root=Path(local_path), ref="HEAD"))
         rendered = report.to_dict()
-        self.assertEqual(rendered["target"]["repo"], "licolite")
+        self.assertEqual(rendered["target"]["project"], "lico")
+        self.assertEqual(rendered["target"]["repo"], "licomesh")
         self.assertNotIn(local_path, str(rendered))
 
     def test_unknown_json_data_file_fails(self) -> None:
@@ -356,14 +395,9 @@ class PrivacyGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             (root / "apps/console/appearance-presets").mkdir(parents=True)
-            (root / "packages/contracts/client").mkdir(parents=True)
             (root / "packages/foundation/src/workflow/state-machine/definitions").mkdir(parents=True)
             (root / "apps/console/appearance-presets/default-system.json").write_text(
                 '{"schemaVersion":"1","id":"default","label":"Default","lightPresetId":"light","darkPresetId":"dark"}',
-                encoding="utf-8",
-            )
-            (root / "packages/contracts/client/status.schema.json").write_text(
-                '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{}}',
                 encoding="utf-8",
             )
             (root / "packages/foundation/src/workflow/state-machine/definitions/example.json").write_text(
@@ -371,6 +405,26 @@ class PrivacyGateTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(scan_worktree(root, profile="platform"), [])
+
+    def test_auto_profile_recognizes_renamed_repo_directories(self) -> None:
+        self.assertEqual(resolve_scan_profile(Path("LicoMesh")), "platform")
+        self.assertEqual(resolve_scan_profile(Path("LicoArc")), "client")
+        self.assertEqual(resolve_scan_profile(Path("licomesh-dev")), "skills")
+        self.assertEqual(resolve_scan_profile(Path("Lico-Auditor")), "common")
+
+    def test_client_profile_allows_licoarc_contract_and_asset_json(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixtures = {
+                "packages/contracts/client/semantic-conversation.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                "apps/desktop/assets/appearance-presets/default-system.json": '{"id":"default-system","label":"Default"}',
+                "tools/scripts/config/secure-mesh-client-boundary.json": '{"schemaVersion":"1","boundary":"client"}',
+            }
+            for relative_path, content in fixtures.items():
+                target = root / relative_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="client"), [])
 
     def test_website_profile_does_not_inherit_platform_config_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -385,7 +439,7 @@ class PrivacyGateTests(unittest.TestCase):
     def test_skills_profile_allows_skill_template_json(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            asset_dir = root / "licolite/content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets"
+            asset_dir = root / "skills/lico-external-service-plugin/assets"
             asset_dir.mkdir(parents=True)
             (asset_dir / "rest-service.template.json").write_text(
                 '{"kind":"rest-service","serviceId":"example","serviceName":"example","tools":[]}',
@@ -393,10 +447,25 @@ class PrivacyGateTests(unittest.TestCase):
             )
             self.assertEqual(scan_worktree(root, profile="skills"), [])
 
+    def test_skills_profile_allows_only_canonical_repository_json_manifests(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixtures = {
+                "config/developer-intent.json": '{"schemaVersion":1,"repositories":[]}',
+                "skills/catalog.json": '{"schemaVersion":1,"skills":[]}',
+                "skills/skills.lock.json": '{"schemaVersion":1,"skills":{}}',
+                "workflows/catalog.json": '{"schemaVersion":1,"profiles":{},"tasks":[]}',
+            }
+            for relative_path, content in fixtures.items():
+                target = root / relative_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="skills"), [])
+
     def test_common_profile_rejects_skill_template_json(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            asset_dir = root / "licolite/content/skills/interface-wrapper/lico-external-service-mcp-wrapper/assets"
+            asset_dir = root / "skills/lico-external-service-plugin/assets"
             asset_dir.mkdir(parents=True)
             (asset_dir / "rest-service.template.json").write_text(
                 '{"kind":"rest-service","serviceId":"example","serviceName":"example","tools":[]}',
