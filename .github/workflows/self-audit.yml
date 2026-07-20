@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - only
+  pull_request:
+    branches:
+      - only
   workflow_dispatch:
   schedule:
     - cron: "43 3 * * *"
@@ -18,12 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: only
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'only' }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Verify audit source of truth
+        if: github.event_name != 'pull_request'
         run: |
           bin/lico-auditor source-of-truth \
             --repo . \
@@ -31,6 +35,11 @@ jobs:
             --branch only \
             --require-current-head \
             --enforce-remote-heads
+      - name: Verify audit package on pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          test -x bin/lico-auditor
+          bin/lico-auditor --help >/dev/null
       - name: Run tests
         run: python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Audit this repository
