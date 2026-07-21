@@ -451,7 +451,7 @@ class PrivacyGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             fixtures = {
-                "config/developer-intent.json": '{"schemaVersion":1,"repositories":[]}',
+                "config/repositories.json": '{"schemaVersion":1,"repositories":[]}',
                 "skills/catalog.json": '{"schemaVersion":1,"skills":[]}',
                 "skills/skills.lock.json": '{"schemaVersion":1,"skills":{}}',
                 "workflows/catalog.json": '{"schemaVersion":1,"profiles":{},"tasks":[]}',

@@ -524,7 +524,7 @@ PLATFORM_JSON_PATH_PATTERNS = (
     r"tests/objective-test-cases\.json",
 )
 SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
-    r"config/developer-intent\.json",
+    r"config/repositories\.json",
     r"skills/catalog\.json",
     r"skills/skills\.lock\.json",
     r"skills/[^/]+/assets/[^/]+\.template\.json",
