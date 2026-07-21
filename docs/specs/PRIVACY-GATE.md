@@ -5,7 +5,7 @@ repositories. The audit repository is governed by a single `only` branch. All
 Actions must run the latest `only` HEAD and fail if any other audit branch is
 reachable.
 The current governed targets are `LicoLand/LicoMesh`, `LicoLand/LicoArc`,
-`LicoLand/licomesh-dev`, `LicoLand/licomesh.com`, `LicoLand/.github`, and
+`LicoLand/Lico-Dev`, `LicoLand/licomesh.com`, `LicoLand/.github`, and
 `LicoLand/licomesh-community`.
 
 ## Policy Profiles
@@ -25,7 +25,7 @@ The gate is layered:
 - `website` applies to `LicoLand/licomesh.com`. It does not inherit platform
   configuration paths; arbitrary JSON content/data files are denied unless a
   future website-specific schema is added here.
-- `skills` applies to `LicoLand/licomesh-dev`. It admits template JSON only at
+- `skills` applies to `LicoLand/Lico-Dev`. It admits template JSON only at
   `skills/*/assets/*.template.json` plus common build metadata, but not
   operational exports, databases, or customer-shaped data.
 

@@ -131,7 +131,7 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "ip-literal")
 
     def test_allowed_domains_pass(self) -> None:
-        findings = scan_text("fixture.txt", "url=https://licomesh.com host=api.licomesh.app endpoint=http://localhost:3000")
+        findings = scan_text("fixture.txt", "url=https://licomesh.com host=api.licomesh.app org=https://licoland.com endpoint=http://localhost:3000")
         self.assertEqual(findings, [])
 
     def test_disallowed_domains_fail(self) -> None:
@@ -162,9 +162,9 @@ class PrivacyGateTests(unittest.TestCase):
     def test_public_reference_domains_pass_only_in_reference_contexts(self) -> None:
         self.assertEqual(scan_text("README.md", "https://github.com/LicoLand/LicoMesh"), [])
         self.assertEqual(scan_text("index.html", "https://www.npmjs.com/package/pactium"), [])
-        self.assertEqual(scan_text("skills/licomesh-dev/references/public.md", "https://github.com/LicoLand/LicoMesh"), [])
-        self.assertEqual(scan_text("skills/licomesh-dev/references/public.md", "https://csrc.nist.gov/pubs/example"), [])
-        self.assertEqual(scan_text("skills/licomesh-dev/references/public.md", "https://www.rfc-editor.org/rfc/example"), [])
+        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://github.com/LicoLand/LicoMesh"), [])
+        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://csrc.nist.gov/pubs/example"), [])
+        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://www.rfc-editor.org/rfc/example"), [])
         findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/LicoMesh")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
@@ -409,7 +409,7 @@ class PrivacyGateTests(unittest.TestCase):
     def test_auto_profile_recognizes_renamed_repo_directories(self) -> None:
         self.assertEqual(resolve_scan_profile(Path("LicoMesh")), "platform")
         self.assertEqual(resolve_scan_profile(Path("LicoArc")), "client")
-        self.assertEqual(resolve_scan_profile(Path("licomesh-dev")), "skills")
+        self.assertEqual(resolve_scan_profile(Path("lico-dev")), "skills")
         self.assertEqual(resolve_scan_profile(Path("Lico-Auditor")), "common")
 
     def test_client_profile_allows_licoarc_contract_and_asset_json(self) -> None:

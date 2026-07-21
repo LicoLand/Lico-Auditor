@@ -282,21 +282,22 @@ def _join(parts: Iterable[str]) -> str:
 MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
 GITHUB_CORE_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoMesh.git"])
 GITHUB_LICOARC_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoArc.git"])
-GITHUB_LICOMESH_DEV_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh-dev.git"])
+GITHUB_LICO_DEV_REMOTE = _join(["https://", "github", ".com/LicoLand/Lico-Dev.git"])
 GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh.com.git"])
 GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLand/.github.git"])
 GITHUB_COMMUNITY_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh-community.git"])
 AUDITED_GITHUB_REMOTES = {
     "LicoMesh": GITHUB_CORE_REMOTE,
     "LicoArc": GITHUB_LICOARC_REMOTE,
-    "licomesh-dev": GITHUB_LICOMESH_DEV_REMOTE,
+    "lico-dev": GITHUB_LICO_DEV_REMOTE,
+    "Lico-Dev": GITHUB_LICO_DEV_REMOTE,
     "licomesh.com": GITHUB_SITE_REMOTE,
     ".github": GITHUB_ORG_PROFILE_REMOTE,
     "licomesh-community": GITHUB_COMMUNITY_REMOTE,
 }
 ALLOWED_HOSTS = {"localhost", "0.0.0.0", "127.0.0.1", "::1"}
 ALLOWED_IPV4_LITERALS = {"0.0.0.0", "127.0.0.1"}
-ALLOWED_DOMAIN_SUFFIXES = ("licomesh.com", "licomesh.app")
+ALLOWED_DOMAIN_SUFFIXES = ("licomesh.com", "licomesh.app", "licoland.com")
 CODE_LIKE_HOST_FINAL_LABELS = {
     "argv",
     "arraybuffer",
@@ -573,7 +574,7 @@ PROJECT_POLICIES = {
     ),
     "skills": ProjectPolicy(
         policy_id="skills",
-        description="Authoritative licomesh-dev skills repository policy.",
+        description="Authoritative lico-dev skills repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + SKILL_TEMPLATE_JSON_PATH_PATTERNS,
     ),
@@ -584,8 +585,9 @@ REPOSITORY_POLICY_ALIASES = {
     "LicoArc": "client",
     "LicoMesh": "platform",
     "lico-auditor": "common",
+    "lico-dev": "skills",
+    "Lico-Dev": "skills",
     "licomesh-community": "common",
-    "licomesh-dev": "skills",
     "licomesh.com": "website",
 }
 
@@ -1320,7 +1322,7 @@ RULES = [
     Rule(
         "disallowed-domain",
         "high-risk",
-        "Only localhost, licomesh.com, licomesh.app, and their subdomains are allowed as committed host/domain endpoints.",
+        "Only localhost, licomesh.com, licomesh.app, licoland.com, and their subdomains are allowed as committed host/domain endpoints.",
         re.compile(_join([PROTOCOL_HOST_PATTERN, "|", KEY_VALUE_HOST_PATTERN]), re.IGNORECASE),
         "network-location",
         is_disallowed_domain,

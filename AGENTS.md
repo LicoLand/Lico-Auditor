@@ -1,6 +1,6 @@
 # Lico-Auditor Agent Instructions
 
-<!-- licomesh-dev:shared-rules:start -->
+<!-- lico-dev:shared-rules:start -->
 ## Shared rules
 
 - **parallel-work** — Delegate independent, bounded work to subagents when parallel execution materially improves speed or quality. Prefer fast models for simple text or code work and deep models for complex work; record any fallback when the requested class is unavailable.
@@ -10,15 +10,15 @@
 - **retired-state-reset** — Persistent user state owned by a retired product name is reset, not migrated. The current product must initialize fresh current-name state and must never discover, import, rename, copy, translate, or prompt for a retired-name data root or preference namespace; do not preserve legacy-state fixtures or compatibility gates.
 - **algorithm-quality** — For algorithmic or data-structure work, compare relevant primary or open-source implementations, choose appropriate structures and caching, avoid repeated computation, and optimize scheduling, memory, and concurrency.
 - **retired-artifacts** — Removed code and documentation must not remain as permanent tests, fixtures, compatibility checks, or release gates.
-<!-- licomesh-dev:shared-rules:end -->
+<!-- lico-dev:shared-rules:end -->
 
-<!-- licomesh-dev:repository-scope:start -->
+<!-- lico-dev:repository-scope:start -->
 ## Repository scope
 
-- Own independent audit policy, audit profiles, and audit evidence contracts for governed LicoMesh and LicoArc repositories.
+- Own independent audit policy, audit profiles, and audit evidence contracts.
 - Keep product implementation and runtime data outside this repository.
 - Do not emit matched secret or private data in audit output.
-<!-- licomesh-dev:repository-scope:end -->
+<!-- lico-dev:repository-scope:end -->
 
 ## 品牌形象与组织基因
 

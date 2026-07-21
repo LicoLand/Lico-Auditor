@@ -28,7 +28,7 @@ jobs:
           - repository: LicoLand/LicoMesh
             branch: release
             profile: platform
-          - repository: LicoLand/licomesh-dev
+          - repository: LicoLand/Lico-Dev
             branch: main
             profile: skills
           - repository: LicoLand/licomesh.com
