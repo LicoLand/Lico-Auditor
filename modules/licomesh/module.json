@@ -3,14 +3,14 @@
   "module_type": "project",
   "project_ids": [
     "LicoMesh",
-    "licomesh-dev",
+    "lico-dev",
     "licomesh.com",
     ".github",
     "licomesh-community"
   ],
   "target_repositories": [
     "LicoLand/LicoMesh",
-    "LicoLand/licomesh-dev",
+    "LicoLand/Lico-Dev",
     "LicoLand/licomesh.com",
     "LicoLand/.github",
     "LicoLand/licomesh-community"
@@ -20,7 +20,7 @@
     "LicoMesh:nightly",
     "LicoMesh:stable",
     "LicoMesh:release",
-    "licomesh-dev:main",
+    "lico-dev:main",
     "licomesh.com:main",
     ".github:main",
     "licomesh-community:main"
@@ -34,7 +34,7 @@
       "LicoLand/LicoMesh"
     ],
     "skills": [
-      "LicoLand/licomesh-dev"
+      "LicoLand/Lico-Dev"
     ],
     "website": [
       "LicoLand/licomesh.com"
@@ -49,7 +49,7 @@
     "user, customer, contact, account, or people record-shaped JSON blocked even in allowlisted paths",
     "developer workstation and workspace paths",
     "all non-loopback IP literals",
-    "domains outside localhost, licomesh.com, and licomesh.app",
+    "domains outside localhost, licomesh.com, licomesh.app, and licoland.com",
     "customer, tenant, contract, revenue, commercial account, and business-confidential values",
     "production deployment, cloud resource, backend service, cluster, region, bucket, database, image, registry, and namespace metadata",
     "private keys, credential URLs, JWTs, cloud access tokens, and secret assignments",

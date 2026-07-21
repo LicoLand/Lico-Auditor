@@ -7,7 +7,7 @@ The framework is intentionally outside the target repository. It checks the
 target checkout as data, reports only redacted evidence, and fails when privacy
 or local-info leakage is reachable from public branches.
 It currently governs `LicoLand/LicoMesh`, `LicoLand/LicoArc`,
-`LicoLand/licomesh-dev`, `LicoLand/licomesh.com`, `LicoLand/.github`, and
+`LicoLand/Lico-Dev`, `LicoLand/licomesh.com`, `LicoLand/.github`, and
 `LicoLand/licomesh-community`.
 
 The `only` branch is the sole source of truth. CI jobs must checkout
@@ -42,7 +42,7 @@ Repository-specific profiles only define what engineering files are allowed:
 - `website` for `LicoLand/licomesh.com`: admits only common website/build
   metadata such as package and TypeScript config JSON; arbitrary content/data
   JSON is denied by default.
-- `skills` for `LicoLand/licomesh-dev`: admits template JSON only at
+- `skills` for `LicoLand/Lico-Dev`: admits template JSON only at
   `skills/*/assets/*.template.json` plus common build metadata; operational or
   customer-like data files remain denied.
 - `common` for organization/community support repositories: no product-specific
@@ -63,7 +63,7 @@ names to the correct profile.
   template objects, and user/customer/contact/account record-shaped JSON is
   blocked even inside allowlisted paths;
 - any committed IP literal except local loopback;
-- host/domain endpoints outside localhost, licomesh.com, and licomesh.app;
+- host/domain endpoints outside localhost, licomesh.com, licomesh.app, and licoland.com;
 - production backend/admin endpoint/provider metadata;
 - customer, tenant, contract, revenue, commercial account, and other
   business-confidential values;
