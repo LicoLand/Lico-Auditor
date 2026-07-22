@@ -40,7 +40,6 @@ def finding_identity(finding: Finding) -> tuple[object, ...]:
         finding.column,
         finding.fingerprint,
         finding.evidence_class,
-        finding.commit,
     )
 
 
