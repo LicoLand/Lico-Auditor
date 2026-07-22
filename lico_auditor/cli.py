@@ -31,13 +31,51 @@ def current_commit(repo_root: Path) -> str:
     return stdout.strip() if code == 0 else ""
 
 
+def finding_identity(finding: Finding) -> tuple[object, ...]:
+    return (
+        finding.severity,
+        finding.rule,
+        finding.path,
+        finding.line,
+        finding.column,
+        finding.fingerprint,
+        finding.evidence_class,
+        finding.commit,
+    )
+
+
+def collect_findings(
+    repo_root: Path,
+    *,
+    include_history: bool = False,
+    ref: str = "HEAD",
+    max_commits: int = 0,
+    profile: str | None = None,
+) -> list[Finding]:
+    findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=profile)
+    if include_history:
+        findings.extend(scan_history(repo_root, ref=ref, max_commits=max_commits, profile=profile))
+
+    unique: dict[tuple[object, ...], Finding] = {}
+    for finding in findings:
+        unique.setdefault(finding_identity(finding), finding)
+    return sorted(
+        unique.values(),
+        key=lambda item: (item.commit, item.path, item.line, item.column, item.rule),
+    )
+
+
 def command_gate(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo).resolve()
     if not repo_root.exists():
         return emit_findings([Finding("error", "target-missing", "Target repo does not exist.")], fmt=args.format)
-    findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=args.profile)
-    if args.history:
-        findings.extend(scan_history(repo_root, ref=args.ref, max_commits=args.max_commits, profile=args.profile))
+    findings = collect_findings(
+        repo_root,
+        include_history=args.history,
+        ref=args.ref,
+        max_commits=args.max_commits,
+        profile=args.profile,
+    )
     return emit_findings(findings, fmt=args.format)
 
 
@@ -45,9 +83,13 @@ def command_report(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo).resolve()
     findings: list[Finding]
     if repo_root.exists():
-        findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=args.profile)
-        if args.history:
-            findings.extend(scan_history(repo_root, ref=args.ref, max_commits=args.max_commits, profile=args.profile))
+        findings = collect_findings(
+            repo_root,
+            include_history=args.history,
+            ref=args.ref,
+            max_commits=args.max_commits,
+            profile=args.profile,
+        )
     else:
         findings = [Finding("error", "target-missing", "Target repo does not exist.")]
     report = AuditReport(AuditTarget(repo_root=repo_root, project=args.project, ref=args.ref), findings)

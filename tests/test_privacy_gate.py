@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import subprocess
 from pathlib import Path
 
+from lico_auditor.cli import collect_findings
 from lico_auditor.models import AuditReport, AuditTarget
 from lico_auditor.scanner import resolve_scan_profile, scan_history, scan_text, scan_worktree
 
@@ -85,6 +87,54 @@ def business_revenue_assignment() -> str:
 
 
 class PrivacyGateTests(unittest.TestCase):
+    def init_git_repo(self, root: Path) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        subprocess.run(["git", "config", "user.name", "Audit Test"], cwd=root, check=True)
+        subprocess.run(["git", "config", "user.email", "audit@example.test"], cwd=root, check=True)
+
+    def commit_all(self, root: Path, message: str) -> None:
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
+
+    def test_history_collection_does_not_double_count_clean_head(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.init_git_repo(root)
+            (root / "evidence.txt").write_text(macos_home_path("example/private"), encoding="utf-8")
+            self.commit_all(root, "add evidence")
+
+            findings = collect_findings(root, include_history=True)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "developer-macos-home-path")
+
+    def test_history_collection_keeps_untracked_worktree_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.init_git_repo(root)
+            (root / "tracked.txt").write_text(macos_home_path("example/tracked"), encoding="utf-8")
+            self.commit_all(root, "add tracked evidence")
+            (root / "untracked.txt").write_text(macos_home_path("example/untracked"), encoding="utf-8")
+
+            findings = collect_findings(root, include_history=True)
+
+        self.assertEqual({item.path for item in findings}, {"tracked.txt", "untracked.txt"})
+
+    def test_history_collection_keeps_finding_deleted_from_head(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.init_git_repo(root)
+            evidence = root / "historical.txt"
+            evidence.write_text(macos_home_path("example/historical"), encoding="utf-8")
+            self.commit_all(root, "add historical evidence")
+            evidence.unlink()
+            self.commit_all(root, "remove historical evidence")
+
+            findings = collect_findings(root, include_history=True)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].path, "historical.txt")
+
     def test_finding_redacts_value_and_keeps_fingerprint(self) -> None:
         leaked_path = macos_home_path("example/private")
         findings = scan_text("fixture.txt", f"path={leaked_path}")
