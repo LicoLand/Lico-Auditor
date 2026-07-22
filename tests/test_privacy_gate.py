@@ -102,6 +102,8 @@ class PrivacyGateTests(unittest.TestCase):
             self.init_git_repo(root)
             (root / "evidence.txt").write_text(macos_home_path("example/private"), encoding="utf-8")
             self.commit_all(root, "add evidence")
+            (root / "unrelated.txt").write_text("public", encoding="utf-8")
+            self.commit_all(root, "advance head")
 
             findings = collect_findings(root, include_history=True)
 
