@@ -1,0 +1,27 @@
+{
+  "module_id": "fabrigent",
+  "module_type": "project",
+  "project_ids": [
+    "Fabrigent"
+  ],
+  "target_repositories": [
+    "LicoLand/Fabrigent"
+  ],
+  "audit_source_branch": "only",
+  "target_branches": [
+    "Fabrigent:main"
+  ],
+  "policy_profiles": {
+    "fabrigent": [
+      "LicoLand/Fabrigent"
+    ]
+  },
+  "current_gate_scope": [
+    "single latest only branch source-of-truth enforcement",
+    "common privacy baseline for all public repositories",
+    "Fabrigent protocol schemas, policy definitions, registries, and generated projections",
+    "tracked documentation governance and local-only asset boundaries",
+    "data files denied unless explicitly admitted as public protocol or policy authority",
+    "secrets, local paths, non-loopback IPs, private endpoints, and runtime data blocked"
+  ]
+}

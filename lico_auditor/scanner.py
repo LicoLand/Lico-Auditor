@@ -5,6 +5,8 @@ import re
 from io import BytesIO
 from pathlib import Path
 
+from .contribution_rules import scan_contributor_attribution
+from .documentation_rules import documentation_governance_findings
 from .models import Finding
 from .privacy_rules import (
     RULES,
@@ -110,6 +112,8 @@ def scan_worktree(repo_root: Path, *, commit: str = "", profile: str | None = No
             continue
         text = raw.decode("utf-8", "replace")
         findings.extend(scan_text(relative_path, text, commit=commit))
+        findings.extend(scan_contributor_attribution(relative_path, text, commit=commit))
+    findings.extend(documentation_governance_findings(repo_root, scan_profile))
     return sorted(findings, key=lambda item: (item.path, item.line, item.column, item.rule))
 
 
@@ -211,6 +215,7 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0, pr
                 continue
             text = raw.decode("utf-8", "replace")
             findings.extend(scan_text(relative_path, text, commit=commit))
+            findings.extend(scan_contributor_attribution(relative_path, text, commit=commit))
     return sorted(findings, key=lambda item: (item.commit, item.path, item.line, item.column, item.rule))
 
 

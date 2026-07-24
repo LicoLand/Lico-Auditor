@@ -1,12 +1,14 @@
 # Lico-Auditor Privacy Gate
 
-`lico-auditor` is the external audit gate for governed LicoMesh and LicoArc
-repositories. The audit repository is governed by a single `only` branch. All
+`lico-auditor` is the external audit gate for governed Meshrix, LicoUp,
+BadTower, and Fabrigent repositories. The audit repository is governed by a
+single `only` branch. All
 Actions must run the latest `only` HEAD and fail if any other audit branch is
 reachable.
-The current governed targets are `LicoLand/LicoMesh`, `LicoLand/LicoArc`,
-`LicoLand/Lico-Dev`, `LicoLand/licomesh.com`, `LicoLand/.github`, and
-`LicoLand/licomesh-community`.
+The current governed targets cover Meshrix core, services, and plugins;
+LicoUp; BadTower; Fabrigent; the retained independent `LicoArc-Plugins`
+marketplace; developer and organization governance; and official website
+repositories.
 
 ## Policy Profiles
 
@@ -16,13 +18,18 @@ The gate is layered:
   hard blockers: unapproved data files, user-record shaped JSON, secrets,
   endpoint/IP/domain rules, local paths, operational metadata, and GitHub
   surface checks.
-- `platform` applies to the real platform code repository `LicoLand/LicoMesh`.
-  It admits only the platform's known configuration and registry JSON paths,
-  then validates that those files remain schema/config shaped.
-- `client` applies to the client repository `LicoLand/LicoArc`. It admits
+- `meshrix` applies to Meshrix, Meshrix-Services, and Meshrix-Plugins. It
+  admits the platform's known configuration, registry, service-contract, and
+  plugin-manifest JSON paths, then validates their configuration shape.
+- `licoup` applies to the client repository `LicoLand/LicoUp`. It admits
   client contracts, desktop assets, native resource manifests, and reviewed
   client tooling JSON; arbitrary export-like data files remain denied.
-- `website` applies to `LicoLand/licomesh.com`. It does not inherit platform
+- `badtower` applies to `LicoLand/BadTower`. It admits node-owned
+  configuration, implementation schemas, registries, and synthetic examples;
+  protocol and federation policy authority remain outside this profile.
+- `fabrigent` applies to `LicoLand/Fabrigent`. It admits public protocol
+  schemas, policy definitions, registries, and generated projections.
+- `website` applies to official public website repositories. It does not inherit Meshrix
   configuration paths; arbitrary JSON content/data files are denied unless a
   future website-specific schema is added here.
 - `skills` applies to `LicoLand/Lico-Dev`. It admits template JSON only at
@@ -44,7 +51,9 @@ history, or GitHub surfaces expose:
 - allowlisted JSON that has user, customer, contact, account, or people
   record-shaped payloads;
 - any non-loopback IP literal;
-- host/domain endpoints outside localhost, licomesh.com, and licomesh.app;
+- host/domain endpoints outside localhost and the official `lico.land`,
+  `licoland.com`, `meshrix.io`, `licomesh.com`, `licoup.com`, `licoup.net`,
+  and `licoarc.com` namespaces;
 - production backend/admin endpoint or provider metadata;
 - customer, tenant, contract, revenue, commercial account, and other
   business-confidential values;
@@ -55,6 +64,44 @@ history, or GitHub surfaces expose:
   tokens, and secret-like configuration assignments;
 - committed SSH public key material;
 - GitHub pull refs after clean repository publication.
+- Cursor attribution in contributor files, project author metadata, commit
+  author or committer identity, and attribution trailers such as `Made-with`
+  or `Co-authored-by`;
+- local branch names beginning with `codex`, which must be replaced with a
+  meaningful prefix such as `feature` or `fix`; the GitHub ruleset applies the
+  same restriction before remote branch creation or update.
 
 Any `high-risk` or `error` finding fails the gate. There is no warning-only
 mode for release gates.
+
+## GitHub Enforcement
+
+`.github/rulesets/contribution-governance.json` is the canonical importable
+organization ruleset. It rejects `codex`-prefixed branch creation or updates
+and Cursor attribution in commit messages, author email, or committer email
+before GitHub accepts the ref update. It targets every governed public
+repository and has no bypass actors.
+
+GitHub metadata rules cannot inspect contributor files or author display
+names. Governed repositories must therefore call
+`.github/workflows/contribution-governance.yml` and require its
+`contribution-governance` job in the branch ruleset. The reusable workflow
+checks the pull request or push commit range and current candidate tree with
+the canonical `only` version of Lico-Auditor. The independent scheduled audit
+continues to inspect complete reachable history without a legacy baseline.
+
+## Documentation Governance
+
+The `meshrix`, `licoup`, `badtower`, and `fabrigent` profiles also validate
+the current tracked documentation publication candidate. The check covers the required public
+layout, bilingual README mapping, formal-document categories and index,
+relative links, module READMEs, generated-projection metadata, local-only
+ignore boundaries, and external skill ownership.
+
+This structural gate does not claim that document content is semantically
+correct. Capability truth, canonical fact ownership, ADR evidence, and release
+provenance remain the responsibility of the target repository's code, schemas,
+registries, and verifiers.
+
+See
+[Meshrix, LicoUp, BadTower, and Fabrigent Documentation Governance Gate](DOCUMENTATION-GOVERNANCE.md).

@@ -1,7 +1,7 @@
 [project]
 name = "lico-auditor"
 version = "0.1.0"
-description = "External privacy and release audit gate for governed LicoMesh and LicoArc repositories."
+description = "External privacy and release audit gate for governed Meshrix, LicoUp, BadTower, and Fabrigent repositories."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

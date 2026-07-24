@@ -12,7 +12,7 @@ DEFAULT_TEXT_FINDING_LIMIT = 200
 
 
 def text_finding_limit() -> int:
-    raw = os.environ.get("LICOMESH_AUDIT_TEXT_FINDING_LIMIT", str(DEFAULT_TEXT_FINDING_LIMIT))
+    raw = os.environ.get("LICO_AUDITOR_TEXT_FINDING_LIMIT", str(DEFAULT_TEXT_FINDING_LIMIT))
     try:
         return max(1, int(raw))
     except ValueError:
