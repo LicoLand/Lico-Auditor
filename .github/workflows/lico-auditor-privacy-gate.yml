@@ -37,9 +37,6 @@ jobs:
           - repository: LicoLand/LicoUp
             branch: nightly
             profile: licoup
-          - repository: LicoLand/LicoUp
-            branch: main
-            profile: licoup
           - repository: LicoLand/BadTower
             branch: main
             profile: badtower
