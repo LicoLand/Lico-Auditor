@@ -539,6 +539,9 @@ COMMON_JSON_PATH_PATTERNS = (
     r"github/rulesets/[^/]+\.json",
     r"modules/[^/]+/module\.json",
     r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
+    r"(?:.*/)?\.?mcp\.json",
+    r"(?:.*/)?\.?codex-plugin/plugin\.json",
+    r"(?:.*/)?\.?agents/plugins/marketplace\.json",
 )
 MESHRIX_JSON_PATH_PATTERNS = (
     r"apps/console/appearance-presets/[^/]+\.json",
@@ -775,6 +778,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     if not isinstance(data, dict):
         return False
     keys = json_object_keys(data)
+    if name in {"mcp.json", ".mcp.json"}:
+        return "mcpServers" in keys
     if name == "package.json":
         return bool(keys & {"name", "version", "scripts", "dependencies", "devDependencies"})
     if name == "package-lock.json":
