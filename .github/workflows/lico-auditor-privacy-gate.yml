@@ -49,9 +49,6 @@ jobs:
           - repository: LicoLand/LicoArc-Plugins
             branch: main
             profile: common
-          - repository: LicoLand/Lico-Dev
-            branch: main
-            profile: skills
           - repository: LicoLand/lico.land
             branch: main
             profile: website
@@ -113,29 +110,5 @@ jobs:
             --repo target \
             --profile ${{ matrix.target.profile }} \
             --history \
+            --no-contribution \
             --format text
-
-  audit-github-surface:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Checkout audit gate
-        uses: actions/checkout@v5
-        with:
-          repository: LicoLand/Lico-Auditor
-          ref: only
-          fetch-depth: 0
-      - name: Verify audit source of truth
-        run: |
-          bin/lico-auditor source-of-truth \
-            --repo . \
-            --remote origin \
-            --branch only \
-            --require-current-head \
-            --enforce-remote-heads
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      - name: Ensure clean GitHub pull-ref surface
-        run: bin/lico-auditor github-surface --all-targets

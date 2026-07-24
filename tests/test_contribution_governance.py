@@ -60,6 +60,15 @@ class ContributionGovernanceTests(unittest.TestCase):
 
         self.assertIn("cursor-commit-attribution", {item.rule for item in findings})
 
+    def test_no_contribution_skips_commit_attribution(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.init_repo(root)
+            self.commit(root, "implement feature\n\nCo-authored-by: Cursor Bot <bot@example.test>")
+            findings = collect_findings(root, include_history=True, include_contribution=False)
+
+        self.assertNotIn("cursor-commit-attribution", {item.rule for item in findings})
+
     def test_cursor_commit_trailer_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

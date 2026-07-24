@@ -51,16 +51,18 @@ def collect_findings(
     ref: str = "HEAD",
     max_commits: int = 0,
     profile: str | None = None,
+    include_contribution: bool = True,
 ) -> list[Finding]:
     findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=profile)
-    findings.extend(
-        scan_git_contribution_governance(
-            repo_root,
-            ref=ref,
-            include_history=include_history,
-            max_commits=max_commits,
+    if include_contribution:
+        findings.extend(
+            scan_git_contribution_governance(
+                repo_root,
+                ref=ref,
+                include_history=include_history,
+                max_commits=max_commits,
+            )
         )
-    )
     if include_history:
         findings.extend(scan_history(repo_root, ref=ref, max_commits=max_commits, profile=profile))
 
@@ -83,6 +85,7 @@ def command_gate(args: argparse.Namespace) -> int:
         ref=args.ref,
         max_commits=args.max_commits,
         profile=args.profile,
+        include_contribution=not getattr(args, "no_contribution", False),
     )
     return emit_findings(findings, fmt=args.format)
 
@@ -252,6 +255,11 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--ref", default="HEAD", help="Git ref to scan when --history is enabled.")
     gate.add_argument("--history", action="store_true", help="Scan reachable git history for the target ref.")
     gate.add_argument("--max-commits", type=int, default=0, help="Limit history scan to the latest N commits; 0 scans all.")
+    gate.add_argument(
+        "--no-contribution",
+        action="store_true",
+        help="Skip commit-attribution and branch-metadata governance checks; use for full-history content scans of long-lived repositories.",
+    )
     gate.add_argument(
         "--profile",
         choices=("auto", "common", "meshrix", "licoup", "badtower", "fabrigent", "website", "skills"),
