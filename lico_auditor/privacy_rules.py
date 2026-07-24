@@ -587,8 +587,12 @@ BADTOWER_JSON_PATH_PATTERNS = (
     r"config/[^/]+(?:\.template|\.schema)?\.json",
     r"schemas/.+\.json",
     r"registry/(?:core-host-contract|plugins)\.json",
+    r"vendor/[^/]+\.json",
 )
 FABRIGENT_JSON_PATH_PATTERNS = (
+    r"artifacts/[^/]+\.json",
+    r"conformance/.+\.json",
+    r"contracts/.+\.json",
     r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
     r"policies/.+\.json",
     r"protocols/(?:generated|schemas)/.+\.json",
@@ -776,10 +780,18 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
     if not isinstance(data, dict):
-        return False
+        return isinstance(data, list) and normalized.startswith("conformance/")
     keys = json_object_keys(data)
     if name in {"mcp.json", ".mcp.json"}:
         return "mcpServers" in keys
+    if normalized.startswith("artifacts/") or normalized.startswith("vendor/"):
+        return {"artifactVersion", "digest", "digestAlgorithm"} <= keys
+    if normalized.startswith("conformance/"):
+        return bool(keys)
+    if normalized.startswith("contracts/") and name.endswith(".schema.json"):
+        return {"$schema", "type"} <= keys
+    if normalized.startswith("policies/"):
+        return "policyVersion" in keys or bool(keys & selected.shape_marker_keys)
     if name == "package.json":
         return bool(keys & {"name", "version", "scripts", "dependencies", "devDependencies"})
     if name == "package-lock.json":
