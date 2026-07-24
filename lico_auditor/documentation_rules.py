@@ -52,6 +52,16 @@ FORMAL_DOCUMENTATION_FILES = frozenset(
     }
 )
 
+
+def is_localized_formal_document(path: str) -> bool:
+    """Localized siblings of formal root documents (for example
+    docs/COMPATIBILITY.zh-CN.md) carry the same governance as their normative
+    source and may live next to it."""
+    return any(
+        formal.endswith(".md") and path == f"{formal[:-3]}.zh-CN.md"
+        for formal in FORMAL_DOCUMENTATION_FILES
+    )
+
 LOCAL_ONLY_PREFIXES = (
     "docs/plans/",
     "docs/reports/",
@@ -217,7 +227,11 @@ def documentation_governance_findings(repo_root: Path, profile: str) -> list[Fin
                 )
             )
         if path.startswith("docs/") and path.lower().endswith(".md"):
-            if path not in FORMAL_DOCUMENTATION_FILES and not path.startswith(FORMAL_DOCUMENTATION_PREFIXES):
+            if (
+                path not in FORMAL_DOCUMENTATION_FILES
+                and not is_localized_formal_document(path)
+                and not path.startswith(FORMAL_DOCUMENTATION_PREFIXES)
+            ):
                 findings.append(
                     _finding(
                         "documentation-formal-path-invalid",
