@@ -280,24 +280,54 @@ def _join(parts: Iterable[str]) -> str:
 
 
 MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
-GITHUB_CORE_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoMesh.git"])
-GITHUB_LICOARC_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoArc.git"])
+LINUX_HOME_PREFIX = _join(["/", "home", "/"])
+ASCII_ACCOUNT_NAME_PATTERN = r"[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_$-])?"
+PATH_COMPONENT_TERMINATOR_PATTERN = r"(?=[/\\\s`'\"),;:\]}>!?]|$)"
+GITHUB_MESHRIX_REMOTE = _join(["https://", "github", ".com/LicoLand/Meshrix.git"])
+GITHUB_MESHRIX_SERVICES_REMOTE = _join(["https://", "github", ".com/LicoLand/Meshrix-Services.git"])
+GITHUB_MESHRIX_PLUGINS_REMOTE = _join(["https://", "github", ".com/LicoLand/Meshrix-Plugins.git"])
+GITHUB_LICOUP_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoUp.git"])
+GITHUB_BADTOWER_REMOTE = _join(["https://", "github", ".com/LicoLand/BadTower.git"])
+GITHUB_FABRIGENT_REMOTE = _join(["https://", "github", ".com/LicoLand/Fabrigent.git"])
+GITHUB_LICOARC_PLUGINS_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoArc-Plugins.git"])
 GITHUB_LICO_DEV_REMOTE = _join(["https://", "github", ".com/LicoLand/Lico-Dev.git"])
-GITHUB_SITE_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh.com.git"])
 GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLand/.github.git"])
-GITHUB_COMMUNITY_REMOTE = _join(["https://", "github", ".com/LicoLand/licomesh-community.git"])
+GITHUB_SITE_REMOTES = {
+    domain: _join(["https://", "github", f".com/LicoLand/{domain}.git"])
+    for domain in (
+        "lico.land",
+        "licoarc.com",
+        "licoland.com",
+        "licomesh.com",
+        "licoup.com",
+        "licoup.net",
+        "meshrix.io",
+    )
+}
 AUDITED_GITHUB_REMOTES = {
-    "LicoMesh": GITHUB_CORE_REMOTE,
-    "LicoArc": GITHUB_LICOARC_REMOTE,
+    "Meshrix": GITHUB_MESHRIX_REMOTE,
+    "Meshrix-Services": GITHUB_MESHRIX_SERVICES_REMOTE,
+    "Meshrix-Plugins": GITHUB_MESHRIX_PLUGINS_REMOTE,
+    "LicoUp": GITHUB_LICOUP_REMOTE,
+    "BadTower": GITHUB_BADTOWER_REMOTE,
+    "Fabrigent": GITHUB_FABRIGENT_REMOTE,
+    "LicoArc-Plugins": GITHUB_LICOARC_PLUGINS_REMOTE,
     "lico-dev": GITHUB_LICO_DEV_REMOTE,
     "Lico-Dev": GITHUB_LICO_DEV_REMOTE,
-    "licomesh.com": GITHUB_SITE_REMOTE,
     ".github": GITHUB_ORG_PROFILE_REMOTE,
-    "licomesh-community": GITHUB_COMMUNITY_REMOTE,
+    **GITHUB_SITE_REMOTES,
 }
 ALLOWED_HOSTS = {"localhost", "0.0.0.0", "127.0.0.1", "::1"}
 ALLOWED_IPV4_LITERALS = {"0.0.0.0", "127.0.0.1"}
-ALLOWED_DOMAIN_SUFFIXES = ("licomesh.com", "licomesh.app", "licoland.com")
+ALLOWED_DOMAIN_SUFFIXES = (
+    "lico.land",
+    "licoarc.com",
+    "licoland.com",
+    "licomesh.com",
+    "licoup.com",
+    "licoup.net",
+    "meshrix.io",
+)
 CODE_LIKE_HOST_FINAL_LABELS = {
     "argv",
     "arraybuffer",
@@ -318,7 +348,7 @@ CODE_LIKE_HOST_FINAL_LABELS = {
     "mjs",
     "origin",
     "payload",
-    "platform",
+    "meshrix",
     "setdefault",
     "sh",
     "servers",
@@ -349,6 +379,7 @@ PUBLIC_REFERENCE_HOSTS = {
     "docs.microsoft.com",
     "downloads.digitalcorpora.org",
     "flutter.dev",
+    "fsf.org",
     "github.com",
     "img.shields.io",
     "json-schema.org",
@@ -430,7 +461,7 @@ PROTOCOL_HOST_PATTERN = _join([
     OPTIONAL_PORT_PATTERN,
 ])
 KEY_VALUE_HOST_PATTERN = _join([
-    r"(?i:\b(?:host|hostname|domain|endpoint|url|origin|server|baseUrl|apiUrl|remote)\b\s*[:=]\s*[\"']?",
+    r"(?i" + COLON + r"\b(?:host|hostname|domain|endpoint|url|origin|server|baseUrl|apiUrl|remote)\b\s*[:=]\s*[\"']?",
     r"(?:[A-Za-z][A-Za-z0-9+.-]*://)?",
     LOCAL_OR_DOMAIN_HOST_PATTERN,
     OPTIONAL_PORT_PATTERN,
@@ -438,7 +469,7 @@ KEY_VALUE_HOST_PATTERN = _join([
 ])
 SSH_ENDPOINT_PATTERN = _join([r"\b[A-Za-z0-9._-]+@", LOCAL_OR_DOMAIN_HOST_PATTERN, REQUIRED_PORT_PATTERN, r"\b"])
 SYSTEM_PATH_PATTERN = re.compile(
-    r"(?<![:/A-Za-z0-9_.-])/(?:etc|home|opt|private/tmp|root|srv|tmp|usr/local|var)(?:/[^\s`'\"),;]*)?",
+    r"(?<![:/A-Za-z0-9_.-])/(?:etc|opt|private/tmp|root|srv|tmp|usr/local|var)(?:/[^\s`'\"),;]*)?",
     re.IGNORECASE,
 )
 PRIVATE_KEY_BLOCK_PATTERN = re.compile(_join(["-----BEGIN ", r"(?:[A-Z0-9]+ )?PRIVATE KEY", "-----"]))
@@ -475,10 +506,10 @@ OPS_ENDPOINT_URL_PATTERN = re.compile(r"\b(?:https?|wss?)://[^\s`'\"),;]+", re.I
 
 WINDOWS_DEVELOPER_PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_.-])[A-Za-z]:[\\/]"
-    r"(?:(?:Users[\\/][^\\/\s`'\")]+)|"
-    r"(?:(?:[^\\/\s`'\")]+)[\\/])?"
-    r"(?:dev(?:elopment|space)?|projects?|repos(?:itories)?|workspaces?))"
-    r"(?:[\\/][^\s`'\")]+)+",
+    rf"(?:(?:Users[\\/]{ASCII_ACCOUNT_NAME_PATTERN}{PATH_COMPONENT_TERMINATOR_PATTERN})|"
+    r"(?:(?:(?:[^\\/\s`'\")]+)[\\/])?"
+    r"(?:dev(?:elopment|space)?|projects?|repos(?:itories)?|workspaces?)"
+    r"(?:[\\/][^\s`'\")]+)+))",
     re.IGNORECASE,
 )
 
@@ -505,15 +536,13 @@ class ProjectPolicy:
 
 
 COMMON_JSON_PATH_PATTERNS = (
+    r"github/rulesets/[^/]+\.json",
     r"modules/[^/]+/module\.json",
     r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
 )
-PLATFORM_JSON_PATH_PATTERNS = (
+MESHRIX_JSON_PATH_PATTERNS = (
     r"apps/console/appearance-presets/[^/]+\.json",
     r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
-    r"docs/generated/[^/]+\.generated\.json",
-    r"docs/plan/[^/]+\.json",
-    r"docs/scenarios/[^/]+\.json",
     r"packages/[^/]+/manifest\.module\.json",
     r"packages/.+/module\.json",
     r"packages/agents/src/agent-configs/.+\.json",
@@ -522,6 +551,11 @@ PLATFORM_JSON_PATH_PATTERNS = (
     r"packages/foundation/src/workflow/state-machine/definitions/[^/]+\.json",
     r"packages/servicehub/src/registration/external-service\.example\.json",
     r"tests/objective-test-cases\.json",
+    r"demo/[^/]+\.json",
+    r"plugins/.+/(?:adapter|plugin|configuration\.schema)\.json",
+    r"plugins/.+/(?:capability|external-services|state-machines)/.+\.json",
+    r"registry/[^/]+\.json",
+    r"schemas/[^/]+\.json",
 )
 SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
     r"config/repositories\.json",
@@ -530,7 +564,7 @@ SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
     r"skills/[^/]+/assets/[^/]+\.template\.json",
     r"workflows/catalog\.json",
 )
-CLIENT_JSON_PATH_PATTERNS = (
+LICOUP_JSON_PATH_PATTERNS = (
     r"apps/desktop/assets/agent-render-adapters/[^/]+\.json",
     r"apps/desktop/assets/appearance-presets/[^/]+\.json",
     r"apps/desktop/ios/Runner/Assets\.xcassets/.+/Contents\.json",
@@ -538,33 +572,60 @@ CLIENT_JSON_PATH_PATTERNS = (
     r"apps/desktop/macos/Runner/Assets\.xcassets/.+/SourceManifest\.json",
     r"apps/desktop/packaging\.modules\.json",
     r"apps/desktop/test/(?:fixtures|layout)/.+\.json",
-    r"crates/lico-client-native/resources/[^/]+\.json",
+    r"crates/licoup-native/resources/[^/]+\.json",
     r"packages/contracts/client/.+\.schema\.json",
     r"packages/contracts/client/fixtures/.+\.json",
     r"tools/android-release-toolchain\.json",
-    r"tools/client-[^/]+\.json",
+    r"tools/licoup-[^/]+\.json",
     r"tools/scripts/config/[^/]+\.json",
 )
+BADTOWER_JSON_PATH_PATTERNS = (
+    r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
+    r"config/[^/]+(?:\.template|\.schema)?\.json",
+    r"schemas/.+\.json",
+    r"registry/(?:core-host-contract|plugins)\.json",
+)
+FABRIGENT_JSON_PATH_PATTERNS = (
+    r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
+    r"policies/.+\.json",
+    r"protocols/(?:generated|schemas)/.+\.json",
+    r"registry/.+\.json",
+    r"schemas/.+\.json",
+)
+BADTOWER_CONFIG_SHAPE_MARKER_KEYS = frozenset(CONFIG_SHAPE_MARKER_KEYS | {"enabledProtocols"})
 PROJECT_POLICIES = {
     "common": ProjectPolicy(
         policy_id="common",
-        description="Common privacy gate for governed LicoMesh and LicoArc public repositories.",
+        description="Common privacy gate for governed LicoLand public repositories.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS,
     ),
-    "platform": ProjectPolicy(
-        policy_id="platform",
-        description="Main LicoMesh Core repository policy.",
+    "meshrix": ProjectPolicy(
+        policy_id="meshrix",
+        description="Meshrix platform, service, and plugin repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
-        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + PLATFORM_JSON_PATH_PATTERNS,
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + MESHRIX_JSON_PATH_PATTERNS,
         strict_json_config_prefixes=STRICT_JSON_CONFIG_PREFIXES,
         json_template_prefixes=JSON_TEMPLATE_PREFIXES,
     ),
-    "client": ProjectPolicy(
-        policy_id="client",
-        description="LicoArc client repository policy.",
+    "licoup": ProjectPolicy(
+        policy_id="licoup",
+        description="LicoUp client repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
-        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + CLIENT_JSON_PATH_PATTERNS,
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + LICOUP_JSON_PATH_PATTERNS,
+    ),
+    "badtower": ProjectPolicy(
+        policy_id="badtower",
+        description="BadTower untrusted communication-node repository policy.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + BADTOWER_JSON_PATH_PATTERNS,
+        shape_marker_keys=BADTOWER_CONFIG_SHAPE_MARKER_KEYS,
+    ),
+    "fabrigent": ProjectPolicy(
+        policy_id="fabrigent",
+        description="Fabrigent federation protocol and policy-authority repository policy.",
+        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
+        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + FABRIGENT_JSON_PATH_PATTERNS,
     ),
     "website": ProjectPolicy(
         policy_id="website",
@@ -582,13 +643,23 @@ PROJECT_POLICIES = {
 REPOSITORY_POLICY_ALIASES = {
     ".github": "common",
     "Lico-Auditor": "common",
-    "LicoArc": "client",
-    "LicoMesh": "platform",
+    "BadTower": "badtower",
+    "Fabrigent": "fabrigent",
+    "LicoArc-Plugins": "common",
+    "LicoUp": "licoup",
+    "Meshrix": "meshrix",
+    "Meshrix-Plugins": "meshrix",
+    "Meshrix-Services": "meshrix",
     "lico-auditor": "common",
     "lico-dev": "skills",
     "Lico-Dev": "skills",
-    "licomesh-community": "common",
+    "lico.land": "website",
+    "licoarc.com": "website",
+    "licoland.com": "website",
     "licomesh.com": "website",
+    "licoup.com": "website",
+    "licoup.net": "website",
+    "meshrix.io": "website",
 }
 
 
@@ -1039,8 +1110,10 @@ def is_public_placeholder_value(candidate: str) -> bool:
     if any(word in lowered for word in placeholder_words):
         return True
     return (
-        "licomesh" in lowered
-        or "licoarc" in lowered
+        "meshrix" in lowered
+        or "licoup" in lowered
+        or "badtower" in lowered
+        or "fabrigent" in lowered
         or "lico-auditor" in lowered
         or is_allowed_domain(normalized)
     )
@@ -1085,7 +1158,7 @@ _AUDIT_ENGINE_FILES = frozenset(
 def is_source_code_path(relative_path: str) -> bool:
     normalized = normalized_repo_path(relative_path)
     if normalized.startswith(
-        ("apps/", "packages/", "crates/", "content/", "src/", "tools/", "lico_auditor/")
+        ("apps/", "packages/", "crates/", "content/", "plugins/", "src/", "tools/", "lico_auditor/")
     ):
         return True
     parts = normalized.split("/")
@@ -1306,7 +1379,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed LicoMesh domain.",
+        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed Meshrix domain.",
         re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b"),
         "network-location",
         is_non_loopback_ipv4,
@@ -1314,7 +1387,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost for local loopback or an allowed LicoMesh domain.",
+        "IP literals are not allowed in public source; use localhost for local loopback or an allowed Meshrix domain.",
         re.compile(r"(?<![A-Za-z0-9_.-])(?:\[[0-9a-f:.]+\]|(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]{0,39})(?![A-Za-z0-9_.-])", re.IGNORECASE),
         "network-location",
         is_non_loopback_ipv6,
@@ -1322,7 +1395,7 @@ RULES = [
     Rule(
         "disallowed-domain",
         "high-risk",
-        "Only localhost, licomesh.com, licomesh.app, licoland.com, and their subdomains are allowed as committed host/domain endpoints.",
+        "Only localhost and official LicoLand product domains are allowed as committed host/domain endpoints.",
         re.compile(_join([PROTOCOL_HOST_PATTERN, "|", KEY_VALUE_HOST_PATTERN]), re.IGNORECASE),
         "network-location",
         is_disallowed_domain,
@@ -1338,7 +1411,7 @@ RULES = [
     Rule(
         "operational-endpoint-url",
         "high-risk",
-        "Operational script, deployment, or CI endpoint URLs must use localhost or an allowed LicoMesh domain.",
+        "Operational script, deployment, or CI endpoint URLs must use localhost or an allowed LicoLand product domain.",
         OPS_ENDPOINT_URL_PATTERN,
         "network-location",
         is_operational_endpoint_url,
@@ -1387,7 +1460,22 @@ RULES = [
         "developer-macos-home-path",
         "high-risk",
         "Developer macOS home paths must not be reachable in public history.",
-        re.compile(re.escape(MACOS_HOME_PREFIX) + r"[^/\s`'\")]+(?:/[^\s`'\")]*)?"),
+        re.compile(
+            re.escape(MACOS_HOME_PREFIX)
+            + ASCII_ACCOUNT_NAME_PATTERN
+            + PATH_COMPONENT_TERMINATOR_PATTERN
+        ),
+        "local-path",
+    ),
+    Rule(
+        "developer-linux-home-path",
+        "high-risk",
+        "Developer Linux home paths must not be reachable in public history.",
+        re.compile(
+            re.escape(LINUX_HOME_PREFIX)
+            + ASCII_ACCOUNT_NAME_PATTERN
+            + PATH_COMPONENT_TERMINATOR_PATTERN
+        ),
         "local-path",
     ),
     Rule(

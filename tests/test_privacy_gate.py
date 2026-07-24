@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 import subprocess
@@ -7,11 +8,20 @@ from pathlib import Path
 
 from lico_auditor.cli import collect_findings
 from lico_auditor.models import AuditReport, AuditTarget
+from lico_auditor.privacy_rules import AUDITED_GITHUB_REMOTES
 from lico_auditor.scanner import resolve_scan_profile, scan_history, scan_text, scan_worktree
 
 
 def macos_home_path(suffix: str) -> str:
     return "/" + "Users/" + suffix
+
+
+def linux_home_path(suffix: str) -> str:
+    return "/" + "home/" + suffix
+
+
+def windows_home_path(suffix: str) -> str:
+    return "C:\\" + "Users\\" + suffix
 
 
 def public_ipv4() -> str:
@@ -183,7 +193,11 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "ip-literal")
 
     def test_allowed_domains_pass(self) -> None:
-        findings = scan_text("fixture.txt", "url=https://licomesh.com host=api.licomesh.app org=https://licoland.com endpoint=http://localhost:3000")
+        findings = scan_text(
+            "fixture.txt",
+            "url=https://licomesh.com product=https://meshrix.io network=https://licoup.net "
+            "authority=https://licoarc.com org=https://licoland.com endpoint=http://localhost:3000",
+        )
         self.assertEqual(findings, [])
 
     def test_disallowed_domains_fail(self) -> None:
@@ -212,12 +226,12 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
     def test_public_reference_domains_pass_only_in_reference_contexts(self) -> None:
-        self.assertEqual(scan_text("README.md", "https://github.com/LicoLand/LicoMesh"), [])
+        self.assertEqual(scan_text("README.md", "https://github.com/LicoLand/Meshrix"), [])
         self.assertEqual(scan_text("index.html", "https://www.npmjs.com/package/pactium"), [])
-        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://github.com/LicoLand/LicoMesh"), [])
+        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://github.com/LicoLand/Meshrix"), [])
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://csrc.nist.gov/pubs/example"), [])
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://www.rfc-editor.org/rfc/example"), [])
-        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/LicoMesh")
+        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/Meshrix")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
@@ -244,7 +258,7 @@ class PrivacyGateTests(unittest.TestCase):
 
     def test_business_sensitive_assignments_fail(self) -> None:
         text = f"customer_name={business_customer_name()} {business_revenue_assignment()}"
-        findings = scan_text("docs/private/accounts.md", text)
+        findings = scan_text((Path("docs") / "private" / "accounts.md").as_posix(), text)
         self.assertEqual([item.rule for item in findings], ["business-sensitive-assignment", "business-sensitive-assignment"])
 
     def test_business_sensitive_placeholders_pass(self) -> None:
@@ -268,7 +282,7 @@ class PrivacyGateTests(unittest.TestCase):
         )
 
     def test_production_metadata_placeholders_pass(self) -> None:
-        current_text = "cluster_name=example-cluster region=${REGION} service_name=licomesh"
+        current_text = "cluster_name=example-cluster region=${REGION} service_name=meshrix"
         ecosystem_text = "service_name=lico-auditor"
         self.assertEqual(scan_text("tools/server-scripts/deploy.sh", current_text), [])
         self.assertEqual(scan_text("tools/server-scripts/deploy.sh", ecosystem_text), [])
@@ -340,9 +354,73 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "developer-macos-home-path")
 
     def test_generic_windows_developer_paths_fail_without_private_markers(self) -> None:
-        findings = scan_text("README.md", "path=C:\\Users\\example\\Projects\\sample-app\\config.json")
+        findings = scan_text(
+            "README.md",
+            "path="
+            + windows_home_path(
+                "\\".join(("example", "Projects", "sample-app", "config.json"))
+            ),
+        )
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "developer-windows-workspace-path")
+
+    def test_home_path_username_placeholders_pass(self) -> None:
+        placeholders = (
+            macos_home_path("<user>/project"),
+            macos_home_path("${USER}/project"),
+            macos_home_path("{{ user }}/project"),
+            linux_home_path("<user>/project"),
+            linux_home_path("$USER/project"),
+            linux_home_path("{{ user }}/project"),
+            windows_home_path("<user>\\project"),
+            windows_home_path("%USERNAME%\\project"),
+            windows_home_path("{{ user }}\\project"),
+        )
+        for path in placeholders:
+            with self.subTest(path=path):
+                self.assertEqual(scan_text("README.md", f"path={path}"), [])
+
+    def test_real_home_path_usernames_still_fail(self) -> None:
+        expected = (
+            (macos_home_path("example/project"), "developer-macos-home-path"),
+            (linux_home_path("user/project"), "developer-linux-home-path"),
+            (
+                windows_home_path("example\\project"),
+                "developer-windows-workspace-path",
+            ),
+        )
+        for path, rule in expected:
+            with self.subTest(rule=rule):
+                self.assertEqual(
+                    [item.rule for item in scan_text("README.md", f"path={path}")],
+                    [rule],
+                )
+
+    def test_real_home_path_usernames_with_placeholder_tails_still_fail(self) -> None:
+        expected = (
+            (macos_home_path("example/<repo-root>"), "developer-macos-home-path"),
+            (linux_home_path("user/${PROJECT_ROOT}"), "developer-linux-home-path"),
+            (
+                windows_home_path("example\\<repo-root>"),
+                "developer-windows-workspace-path",
+            ),
+        )
+        for path, rule in expected:
+            with self.subTest(rule=rule):
+                self.assertEqual(
+                    [item.rule for item in scan_text("README.md", f"path={path}")],
+                    [rule],
+                )
+
+    def test_invalid_account_component_does_not_prefix_match(self) -> None:
+        paths = (
+            macos_home_path("name@example/project"),
+            linux_home_path("name{suffix}/project"),
+            windows_home_path("name%placeholder%\\project"),
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertEqual(scan_text("README.md", f"path={path}"), [])
 
     def test_git_failure_reports_do_not_echo_local_runtime_data(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -360,11 +438,11 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "system-or-deployment-path")
 
     def test_source_code_generic_system_paths_pass(self) -> None:
-        findings = scan_text("packages/foundation/src/path-defaults.mjs", "const tmp = '/tmp/licomesh';")
+        findings = scan_text("packages/foundation/src/path-defaults.mjs", f"const tmp = '{system_path()}';")
         self.assertEqual(findings, [])
 
     def test_local_compose_container_paths_pass(self) -> None:
-        self.assertEqual(scan_text("docker-compose.yml", "LICO_SERVER_DATA_DIR: /opt/lico/data"), [])
+        self.assertEqual(scan_text("docker-compose.yml", f"LICO_SERVER_DATA_DIR: {system_path()}"), [])
 
     def test_cloud_server_provisioning_assignment_fails(self) -> None:
         findings = scan_text("tools/scripts/vultr-ip-finder.ps1", f"Hostname={cloud_host_label()}")
@@ -386,11 +464,11 @@ class PrivacyGateTests(unittest.TestCase):
             self.assertEqual(scan_worktree(root), [])
 
     def test_report_target_does_not_emit_absolute_path(self) -> None:
-        local_path = macos_home_path("example/licomesh")
+        local_path = macos_home_path("example/meshrix")
         report = AuditReport(AuditTarget(repo_root=Path(local_path), ref="HEAD"))
         rendered = report.to_dict()
         self.assertEqual(rendered["target"]["project"], "lico")
-        self.assertEqual(rendered["target"]["repo"], "licomesh")
+        self.assertEqual(rendered["target"]["repo"], "meshrix")
         self.assertNotIn(local_path, str(rendered))
 
     def test_unknown_json_data_file_fails(self) -> None:
@@ -417,11 +495,11 @@ class PrivacyGateTests(unittest.TestCase):
             config_dir = root / "packages/foundation/config"
             config_dir.mkdir(parents=True)
             (config_dir / "notes.md").write_text("not a config object", encoding="utf-8")
-            findings = scan_worktree(root, profile="platform")
+            findings = scan_worktree(root, profile="meshrix")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "config-directory-non-json-file")
 
-    def test_platform_profile_allows_approved_config_support_files(self) -> None:
+    def test_meshrix_profile_allows_approved_config_support_files(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             config_dir = root / "packages/foundation/config/entity-config"
@@ -430,7 +508,7 @@ class PrivacyGateTests(unittest.TestCase):
             registry_dir.mkdir(parents=True)
             (config_dir / "README.md").write_text("configuration docs", encoding="utf-8")
             (registry_dir / "index.mjs").write_text("export {};\n", encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="platform"), [])
+            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
     def test_allowlisted_json_config_shape_passes(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -441,9 +519,9 @@ class PrivacyGateTests(unittest.TestCase):
             module_dir.mkdir(parents=True)
             (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
             (module_dir / "module.json").write_text('{"module_id":"default","module_type":"default"}', encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="platform"), [])
+            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
-    def test_platform_profile_allows_fixed_json_shapes(self) -> None:
+    def test_meshrix_profile_allows_fixed_json_shapes(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             (root / "apps/console/appearance-presets").mkdir(parents=True)
@@ -456,27 +534,120 @@ class PrivacyGateTests(unittest.TestCase):
                 '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
                 encoding="utf-8",
             )
-            self.assertEqual(scan_worktree(root, profile="platform"), [])
+            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
     def test_auto_profile_recognizes_renamed_repo_directories(self) -> None:
-        self.assertEqual(resolve_scan_profile(Path("LicoMesh")), "platform")
-        self.assertEqual(resolve_scan_profile(Path("LicoArc")), "client")
+        self.assertEqual(resolve_scan_profile(Path("Meshrix")), "meshrix")
+        self.assertEqual(resolve_scan_profile(Path("Meshrix-Services")), "meshrix")
+        self.assertEqual(resolve_scan_profile(Path("Meshrix-Plugins")), "meshrix")
+        self.assertEqual(resolve_scan_profile(Path("LicoUp")), "licoup")
+        self.assertEqual(resolve_scan_profile(Path("BadTower")), "badtower")
+        self.assertEqual(resolve_scan_profile(Path("Fabrigent")), "fabrigent")
+        self.assertEqual(resolve_scan_profile(Path("LicoArc-Plugins")), "common")
         self.assertEqual(resolve_scan_profile(Path("lico-dev")), "skills")
         self.assertEqual(resolve_scan_profile(Path("Lico-Auditor")), "common")
 
-    def test_client_profile_allows_licoarc_contract_and_asset_json(self) -> None:
+    def test_current_profile_registration_surfaces_align(self) -> None:
+        repository_root = Path(__file__).parents[1]
+        workflow = (
+            repository_root / ".github/workflows/lico-auditor-privacy-gate.yml"
+        ).read_text(encoding="utf-8")
+        expected = {
+            "meshrix": ("Meshrix", "meshrix"),
+            "licoup": ("LicoUp", "licoup"),
+            "badtower": ("BadTower", "badtower"),
+            "fabrigent": ("Fabrigent", "fabrigent"),
+        }
+        for module_name, (repository_name, profile) in expected.items():
+            with self.subTest(module=module_name):
+                module = json.loads(
+                    (repository_root / f"modules/{module_name}/module.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                self.assertIn(f"LicoLand/{repository_name}", module["target_repositories"])
+                self.assertEqual(
+                    module["policy_profiles"][profile],
+                    module["target_repositories"],
+                )
+                self.assertIn(repository_name, AUDITED_GITHUB_REMOTES)
+                self.assertIn(
+                    f"- repository: LicoLand/{repository_name}",
+                    workflow,
+                )
+                self.assertIn(f"profile: {profile}", workflow)
+
+    def test_badtower_profile_allows_only_node_owned_configuration_json(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             fixtures = {
-                "packages/contracts/client/semantic-conversation.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
-                "apps/desktop/assets/appearance-presets/default-system.json": '{"id":"default-system","label":"Default"}',
-                "tools/scripts/config/secure-mesh-client-boundary.json": '{"schemaVersion":"1","boundary":"client"}',
+                "registry/plugins.json": '{"schemaVersion":"1","plugins":[]}',
+                "registry/core-host-contract.json": '{"schemaVersion":"1","coreContractDigest":"sha256:synthetic"}',
+                "config/node.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                "schemas/envelope.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                "docs/examples/node-disabled.json": '{"enabledProtocols":[]}',
             }
             for relative_path, content in fixtures.items():
                 target = root / relative_path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="client"), [])
+            self.assertEqual(scan_worktree(root, profile="badtower"), [])
+
+    def test_badtower_profile_still_rejects_user_record_shapes(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "docs/examples/node-disabled.json"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                '{"enabledProtocols":[],"users":[{"name":"Alice","email":"alice@example.test"}]}',
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="badtower")
+        self.assertIn("user-record-data-shape", {item.rule for item in findings})
+
+    def test_plugin_source_suppresses_code_path_noise_but_not_opaque_secrets(self) -> None:
+        source_path = "src/security.mjs"
+        self.assertEqual(scan_text(source_path, f"const denied = /{system_path().lstrip('/')}/u;"), [])
+        findings = scan_text(source_path, f"client_secret={opaque_secret_value()}")
+        self.assertEqual([item.rule for item in findings], ["secret-assignment"])
+
+    def test_badtower_profile_does_not_inherit_meshrix_json_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "packages/foundation/src/workflow/state-machine/definitions/example.json"
+            target.parent.mkdir(parents=True)
+            target.write_text('{"machineId":"example","states":{}}', encoding="utf-8")
+            findings = scan_worktree(root, profile="badtower")
+        self.assertEqual([item.rule for item in findings], ["json-data-file-not-allowlisted"])
+
+    def test_licoup_profile_allows_client_contract_and_asset_json(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixtures = {
+                "packages/contracts/client/semantic-conversation.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                "apps/desktop/assets/appearance-presets/default-system.json": '{"id":"default-system","label":"Default"}',
+                "tools/scripts/config/secure-mesh-client-boundary.json": '{"schemaVersion":"1","boundary":"licoup"}',
+            }
+            for relative_path, content in fixtures.items():
+                target = root / relative_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="licoup"), [])
+
+    def test_fabrigent_profile_allows_protocol_and_policy_authority_json(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixtures = {
+                "schemas/federation.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
+                "protocols/generated/conformance.json": '{"schemaVersion":"1","canonicalSource":"schemas/federation.schema.json"}',
+                "policies/committee/default.json": '{"schemaVersion":"1","strategies":[]}',
+                "registry/authorities.json": '{"schemaVersion":"1","entries":[]}',
+            }
+            for relative_path, content in fixtures.items():
+                target = root / relative_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="fabrigent"), [])
 
     def test_website_profile_does_not_inherit_platform_config_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -536,7 +707,7 @@ class PrivacyGateTests(unittest.TestCase):
                 '{"schemaVersion":"1","users":[{"name":"Alice","email":"alice@example.test"}]}',
                 encoding="utf-8",
             )
-            findings = scan_worktree(root, profile="platform")
+            findings = scan_worktree(root, profile="meshrix")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "user-record-data-shape")
 

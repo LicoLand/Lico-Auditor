@@ -19,25 +19,61 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - repository: LicoLand/LicoMesh
+          - repository: LicoLand/Meshrix
             branch: nightly
-            profile: platform
-          - repository: LicoLand/LicoMesh
+            profile: meshrix
+          - repository: LicoLand/Meshrix
             branch: stable
-            profile: platform
-          - repository: LicoLand/LicoMesh
+            profile: meshrix
+          - repository: LicoLand/Meshrix
             branch: release
-            profile: platform
+            profile: meshrix
+          - repository: LicoLand/Meshrix-Services
+            branch: main
+            profile: meshrix
+          - repository: LicoLand/Meshrix-Plugins
+            branch: main
+            profile: meshrix
+          - repository: LicoLand/LicoUp
+            branch: nightly
+            profile: licoup
+          - repository: LicoLand/LicoUp
+            branch: main
+            profile: licoup
+          - repository: LicoLand/BadTower
+            branch: main
+            profile: badtower
+          - repository: LicoLand/Fabrigent
+            branch: main
+            profile: fabrigent
+          - repository: LicoLand/LicoArc-Plugins
+            branch: main
+            profile: common
           - repository: LicoLand/Lico-Dev
             branch: main
             profile: skills
+          - repository: LicoLand/lico.land
+            branch: main
+            profile: website
+          - repository: LicoLand/licoland.com
+            branch: main
+            profile: website
+          - repository: LicoLand/meshrix.io
+            branch: main
+            profile: website
           - repository: LicoLand/licomesh.com
             branch: main
             profile: website
-          - repository: LicoLand/.github
+          - repository: LicoLand/licoup.com
             branch: main
-            profile: common
-          - repository: LicoLand/licomesh-community
+            profile: website
+          - repository: LicoLand/licoup.net
+            branch: main
+            profile: website
+          - repository: LicoLand/licoarc.com
+            branch: main
+            profile: website
+          - repository: LicoLand/.github
             branch: main
             profile: common
     steps:

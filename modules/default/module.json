@@ -1,5 +1,5 @@
 {
   "module_id": "default",
   "module_type": "default",
-  "description": "Default external audit policy for governed LicoMesh and LicoArc repositories. Current focus: strict source-of-truth, secret, host, IP, privacy, and local-info leakage gate."
+  "description": "Default external audit policy for governed Meshrix, LicoUp, BadTower, and Fabrigent repositories. Current focus: strict source-of-truth, contribution metadata and branch naming, documentation governance, secret, host, IP, privacy, and local-info leakage gates."
 }

@@ -1,0 +1,75 @@
+{
+  "name": "Lico contribution governance",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "~ALL"
+      ],
+      "exclude": []
+    },
+    "repository_name": {
+      "include": [
+        ".github",
+        "BadTower",
+        "Fabrigent",
+        "Lico-Auditor",
+        "LicoArc-Plugins",
+        "Lico-Dev",
+        "LicoUp",
+        "Meshrix",
+        "Meshrix-Plugins",
+        "Meshrix-Services",
+        "lico.land",
+        "licoarc.com",
+        "licoland.com",
+        "licomesh.com",
+        "licoup.com",
+        "licoup.net",
+        "meshrix.io"
+      ],
+      "exclude": [],
+      "protected": false
+    }
+  },
+  "rules": [
+    {
+      "type": "branch_name_pattern",
+      "parameters": {
+        "name": "Reject codex-prefixed branch names",
+        "negate": true,
+        "operator": "regex",
+        "pattern": "(?i)^codex(?:[/_-]|$)"
+      }
+    },
+    {
+      "type": "commit_message_pattern",
+      "parameters": {
+        "name": "Reject Cursor commit attribution trailers",
+        "negate": true,
+        "operator": "regex",
+        "pattern": "(?im)^(?:co-authored-by|made-with|generated-by|assisted-by|authored-by|committed-by|signed-off-by)\\s*:.*cursor"
+      }
+    },
+    {
+      "type": "commit_author_email_pattern",
+      "parameters": {
+        "name": "Reject Cursor author identities",
+        "negate": true,
+        "operator": "regex",
+        "pattern": "(?i)cursor(?:ai|bot|agent|[\\s_.-]+(?:ai|bot|agent))?"
+      }
+    },
+    {
+      "type": "committer_email_pattern",
+      "parameters": {
+        "name": "Reject Cursor committer identities",
+        "negate": true,
+        "operator": "regex",
+        "pattern": "(?i)cursor(?:ai|bot|agent|[\\s_.-]+(?:ai|bot|agent))?"
+      }
+    }
+  ]
+}

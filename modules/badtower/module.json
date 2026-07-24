@@ -1,0 +1,27 @@
+{
+  "module_id": "badtower",
+  "module_type": "project",
+  "project_ids": [
+    "BadTower"
+  ],
+  "target_repositories": [
+    "LicoLand/BadTower"
+  ],
+  "audit_source_branch": "only",
+  "target_branches": [
+    "BadTower:main"
+  ],
+  "policy_profiles": {
+    "badtower": [
+      "LicoLand/BadTower"
+    ]
+  },
+  "current_gate_scope": [
+    "single latest only branch source-of-truth enforcement",
+    "common privacy baseline for all public repositories",
+    "BadTower node configuration and implementation-owned schemas",
+    "tracked documentation governance and local-only asset boundaries",
+    "protocol authority remains outside BadTower",
+    "secrets, local paths, non-loopback IPs, private endpoints, and runtime data blocked"
+  ]
+}

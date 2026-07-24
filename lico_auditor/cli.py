@@ -5,12 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .contribution_rules import scan_git_contribution_governance
 from .models import AuditReport, AuditTarget, Finding
-from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_CORE_REMOTE
+from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_MESHRIX_REMOTE
 from .report import emit_findings, emit_report
 from .scanner import remote_pull_refs, scan_history, scan_worktree
 
-DEFAULT_REMOTE = GITHUB_CORE_REMOTE
+DEFAULT_REMOTE = GITHUB_MESHRIX_REMOTE
 ONLY_BRANCH = "only"
 
 
@@ -52,6 +53,14 @@ def collect_findings(
     profile: str | None = None,
 ) -> list[Finding]:
     findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=profile)
+    findings.extend(
+        scan_git_contribution_governance(
+            repo_root,
+            ref=ref,
+            include_history=include_history,
+            max_commits=max_commits,
+        )
+    )
     if include_history:
         findings.extend(scan_history(repo_root, ref=ref, max_commits=max_commits, profile=profile))
 
@@ -234,7 +243,7 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run external privacy audit gates for governed LicoMesh and LicoArc repositories."
+        description="Run external privacy audit gates for governed Meshrix, LicoUp, BadTower, and Fabrigent repositories."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -245,9 +254,9 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--max-commits", type=int, default=0, help="Limit history scan to the latest N commits; 0 scans all.")
     gate.add_argument(
         "--profile",
-        choices=("auto", "common", "platform", "client", "website", "skills"),
+        choices=("auto", "common", "meshrix", "licoup", "badtower", "fabrigent", "website", "skills"),
         default="auto",
-        help="Policy profile: auto, common, platform, client, website, or skills.",
+        help="Policy profile: auto, common, meshrix, licoup, badtower, fabrigent, website, or skills.",
     )
     gate.add_argument("--format", choices=("text", "json"), default="text")
     gate.set_defaults(func=command_gate)
@@ -260,9 +269,9 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--max-commits", type=int, default=0)
     report.add_argument(
         "--profile",
-        choices=("auto", "common", "platform", "client", "website", "skills"),
+        choices=("auto", "common", "meshrix", "licoup", "badtower", "fabrigent", "website", "skills"),
         default="auto",
-        help="Policy profile: auto, common, platform, client, website, or skills.",
+        help="Policy profile: auto, common, meshrix, licoup, badtower, fabrigent, website, or skills.",
     )
     report.add_argument("--format", choices=("json", "text"), default="json")
     report.set_defaults(func=command_report)
