@@ -536,6 +536,118 @@ class PrivacyGateTests(unittest.TestCase):
             )
             self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
+    def test_meshrix_profile_allows_governed_json_registries(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            definitions = root / "packages/foundation/src/workflow/state-machine/definitions/acceptance"
+            checkpoints = root / "tools/registry/capability-acceptance-checkpoints"
+            release = root / "tools/release"
+            plugins = root / "plugins"
+            fixtures = root / "packages/contracts/src/fixtures"
+            lifecycle = root / "packages/agents/src/workspace-contribution"
+            config = root / "packages/foundation/config/runtime"
+            for directory in (definitions, checkpoints, release, plugins, fixtures, lifecycle, config):
+                directory.mkdir(parents=True)
+            (definitions / "example.json").write_text(
+                '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
+                encoding="utf-8",
+            )
+            (checkpoints / "example.json").write_text(
+                '[{"id":"example","status":"completed","goal":"example"}]',
+                encoding="utf-8",
+            )
+            (release / "node-runtime.lock.json").write_text(
+                '{"schemaVersion":"1","version":"22.0.0","targets":[]}',
+                encoding="utf-8",
+            )
+            (plugins / "plugin.schema.json").write_text(
+                '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{}}',
+                encoding="utf-8",
+            )
+            (fixtures / "wire-corpus.json").write_text(
+                '{"valid":[{"kind":"example"}],"invalidInvalidations":[]}',
+                encoding="utf-8",
+            )
+            (lifecycle / "example.lifecycle.json").write_text(
+                '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
+                encoding="utf-8",
+            )
+            (config / "default-settings.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
+
+    def test_meshrix_profile_allows_local_only_plan_and_report_json(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            plans = root / "docs/plans/staged/example"
+            reports = root / "docs/reports"
+            plans.mkdir(parents=True)
+            reports.mkdir(parents=True)
+            (plans / "Checkpoints.json").write_text(
+                '[{"id":"example","status":"completed","goal":"example"}]',
+                encoding="utf-8",
+            )
+            (reports / "plan-baseline-migration.json").write_text(
+                '{"schema_version":"1","status":"recorded"}',
+                encoding="utf-8",
+            )
+            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
+
+    def test_governed_versioned_names_are_not_reported_as_secrets(self) -> None:
+        versioned_name = "-".join(["governed", "report", "1"])
+        text = f'const schemaVersion = "v0.0.1:{"authoriza" + "tion"}:{versioned_name}";'
+        self.assertEqual(scan_text("tools/server-scripts/lib/reports.mjs", text), [])
+        self.assertEqual(scan_text("packages/foundation/src/version-control/registry.json", text), [])
+
+    def test_opaque_auth_header_values_still_fail_in_source(self) -> None:
+        opaque_dashed = "-".join(["T9x", "Qm7", "Lp2", "Zd8", "Wk5", "Nr4", "Xv1"])
+        findings = scan_text("packages/foundation/src/client.mjs", f"Authorization: Bearer {opaque_dashed}")
+        self.assertEqual([item.rule for item in findings], ["auth-header-secret"])
+
+    def test_provider_metadata_ip_literals_pass(self) -> None:
+        for octet_tail in ("169.254",):
+            text = " ; ".join(
+                ".".join([octet_tail, third, fourth])
+                for third, fourth in (("169", "254"), ("170", "2"), ("170", "23"))
+            )
+            self.assertEqual(scan_text("packages/foundation/src/security/outbound-egress-policy.mjs", text), [])
+
+    def test_other_link_local_ip_literals_still_fail(self) -> None:
+        findings = scan_text(
+            "packages/foundation/src/security/outbound-egress-policy.mjs",
+            ".".join(["169", "254", "10", "9"]),
+        )
+        self.assertEqual([item.rule for item in findings], ["ip-literal"])
+
+    def test_shell_variable_metadata_assignment_passes(self) -> None:
+        text = 'echo "image=$image" >> "$GITHUB_OUTPUT"'
+        self.assertEqual(scan_text(".github/workflows/release.yml", text), [])
+
+    def test_newline_spanning_metadata_match_is_ignored(self) -> None:
+        text = "build-release-image:\n    name: Build the release image\n"
+        self.assertEqual(scan_text(".github/workflows/release.yml", text), [])
+
+    def test_fixture_word_metadata_values_pass(self) -> None:
+        text = 'accountId: "fixture-account-001"'
+        self.assertEqual(scan_text("tools/server-scripts/lib/upstream-fixture-service.mjs", text), [])
+
+    def test_official_standard_and_integration_hosts_pass(self) -> None:
+        oidc = "token.actions" + ".githubusercontent.com"
+        sbom = "cyclonedx" + ".org"
+        provenance = "slsa" + ".dev"
+        self.assertEqual(scan_text(".github/workflows/release.yml", f'issuer="https://{oidc}"'), [])
+        self.assertEqual(scan_text("tools/generators/sbom.mjs", f'$schema: "https://{sbom}/schema/bom.json"'), [])
+        self.assertEqual(scan_text("tools/server-scripts/publish.mjs", f'PREDICATE = "https://{provenance}/provenance/v1"'), [])
+
+    def test_official_reference_hosts_pass_in_docs(self) -> None:
+        oidc_docs = "openid" + ".net"
+        envoy = "www.envoyproxy" + ".io"
+        text = f"[spec](https://{oidc_docs}/specs/example) [lb](https://{envoy}/docs/example)"
+        self.assertEqual(scan_text("docs/plans/staged/example/Plan.md", text), [])
+
+    def test_dotted_code_identifier_hosts_pass(self) -> None:
+        text = "const server = payload.server || {};\nconst platform = os.platform();\ncookie.domain = value.replace(/^\\./u, '');"
+        self.assertEqual(scan_text("packages/protocols/mcp/adapter/lib/cli/interactive.mjs", text), [])
+
     def test_auto_profile_recognizes_renamed_repo_directories(self) -> None:
         self.assertEqual(resolve_scan_profile(Path("Meshrix")), "meshrix")
         self.assertEqual(resolve_scan_profile(Path("Meshrix-Services")), "meshrix")
