@@ -555,6 +555,7 @@ MESHRIX_JSON_PATH_PATTERNS = (
     r"packages/servicehub/src/registration/external-service\.example\.json",
     r"tests/objective-test-cases\.json",
     r"demo/[^/]+\.json",
+    r"file-parser/format-convert/examples/[^/]+\.json",
     r"plugins/.+/(?:adapter|plugin|configuration\.schema)\.json",
     r"plugins/.+/(?:capability|external-services|state-machines)/.+\.json",
     r"registry/[^/]+\.json",
