@@ -30,6 +30,34 @@ bin/lico-auditor source-of-truth --repo . --require-current-head --enforce-remot
 `gate` is suitable for CI. `report` emits a structured JSON payload. Neither
 command prints the matched sensitive value.
 
+## Independent release gate
+
+First-party repositories call
+`.github/workflows/release-audit.yml@only` from the organization repository
+template. The caller uses `pull_request_target`, default-branch pushes, stable
+release tags, and explicit dispatches; the reusable workflow accepts no
+repository, ref, or profile override from the caller.
+
+The gate runs only canonical Lico-Auditor code and treats the candidate checkout
+as data:
+
+1. verify that `only` is the latest and sole remote audit branch;
+2. resolve the policy profile from the owning repository name;
+3. audit the candidate commit range, including contribution metadata; and
+4. on a stable tag or explicit readiness dispatch, audit all reachable content
+   history with contribution-history noise disabled.
+
+The fourth step still scans every historical file for privacy, secret, local
+machine, user-record, and governed data-policy findings. It suppresses only
+historical attribution that is separately enforced on the candidate range.
+The workflow has read-only contents permission, receives no secrets, persists
+no checkout credential, and never executes target-repository code.
+
+This audit is independent of the organization version-contract verifier and
+of repository-owned build or acceptance checks. A tag is not eligible for a
+GitHub Release until all three claims succeed. There is no warning-only or
+administrator-bypass release mode.
+
 ## Policy Profiles
 
 Every repository runs the `common` baseline: source-of-truth checks, data-file
