@@ -480,6 +480,77 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "json-data-file-not-allowlisted")
 
+    def test_all_profiles_allow_the_exact_release_plan_contract(self) -> None:
+        release_plan = {
+            "$schema": (
+                "https://raw.githubusercontent.com/LicoLand/.github/main/"
+                "schemas/release-plan.schema.json"
+            ),
+            "schemaVersion": 1,
+            "repository": "LicoLand/example",
+            "profile": "semver",
+            "currentVersion": "0.1.0",
+            "versionSources": [
+                {
+                    "format": "json",
+                    "path": "package.json",
+                    "pointer": "/version",
+                }
+            ],
+            "changelog": "CHANGELOG.md",
+            "nextRelease": None,
+            "releases": [],
+            "components": [],
+        }
+        for profile in (
+            "common",
+            "meshrix",
+            "licoup",
+            "badtower",
+            "fabrigent",
+            "website",
+            "skills",
+        ):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                target = root / "docs/releases/plan.json"
+                target.parent.mkdir(parents=True)
+                target.write_text(
+                    json.dumps(release_plan) + "\n",
+                    encoding="utf-8",
+                )
+                self.assertEqual(scan_worktree(root, profile=profile), [])
+
+    def test_release_plan_rejects_extra_data_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "docs/releases/plan.json"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                json.dumps(
+                    {
+                        "$schema": "https://example.invalid/schema.json",
+                        "schemaVersion": 1,
+                        "repository": "LicoLand/example",
+                        "profile": "semver",
+                        "currentVersion": None,
+                        "versionSources": [],
+                        "changelog": None,
+                        "nextRelease": None,
+                        "releases": [],
+                        "components": [],
+                        "users": [],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="common")
+        self.assertEqual(
+            [item.rule for item in findings],
+            ["json-config-shape-invalid"],
+        )
+
     def test_data_export_files_fail_even_when_binary(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
