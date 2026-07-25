@@ -213,3 +213,27 @@ class ContributionGovernanceTests(unittest.TestCase):
             message_pattern.search("subject\n\nCo-authored-by: Cursor Bot <bot@example.test>")
         )
         self.assertIsNone(message_pattern.search("document Cursor integration"))
+
+    def test_release_audit_workflow_is_trusted_and_two_phase(self) -> None:
+        repository_root = Path(__file__).parents[1]
+        workflow_path = repository_root / ".github/workflows/release-audit.yml"
+        retired_path = repository_root / ".github/workflows/contribution-governance.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        self.assertTrue(workflow_path.is_file())
+        self.assertFalse(retired_path.exists())
+        self.assertIn("  workflow_call:", workflow)
+        self.assertIn("    name: final-gate", workflow)
+        self.assertIn("          ref: only", workflow)
+        self.assertIn("            --require-current-head", workflow)
+        self.assertIn("            --enforce-remote-heads", workflow)
+        self.assertEqual(workflow.count("          persist-credentials: false"), 2)
+        self.assertIn("            --profile auto", workflow)
+        self.assertIn('            --ref "$candidate_ref"', workflow)
+        self.assertIn("github.ref_type == 'tag'", workflow)
+        self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
+        self.assertIn("            --no-contribution", workflow)
+        self.assertIn('            --ref "$HEAD_SHA"', workflow)
+        self.assertNotIn("inputs.profile", workflow)
+        self.assertNotIn("secrets.", workflow)
+        self.assertNotIn("working-directory: target", workflow)
