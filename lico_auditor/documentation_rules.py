@@ -49,6 +49,7 @@ FORMAL_DOCUMENTATION_FILES = frozenset(
         "docs/RUNBOOK.md",
         "docs/COMPATIBILITY.md",
         "docs/ENTITY-CONFIG-LAYOUT.md",
+        "docs/releases/README.md",
     }
 )
 

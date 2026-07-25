@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LicoLand/.github/main/schemas/release-plan.schema.json",
+  "schemaVersion": 1,
+  "repository": "LicoLand/Lico-Auditor",
+  "profile": "semver",
+  "currentVersion": "0.1.0",
+  "versionSources": [
+    {
+      "format": "toml",
+      "path": "pyproject.toml",
+      "key": "project.version"
+    },
+    {
+      "format": "regex",
+      "path": "lico_auditor/__init__.py",
+      "pattern": "__version__\\s*=\\s*\"(?P<version>[^\"]+)\""
+    }
+  ],
+  "changelog": "CHANGELOG.md",
+  "nextRelease": null,
+  "releases": [],
+  "components": []
+}
