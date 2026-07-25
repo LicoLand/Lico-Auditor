@@ -659,6 +659,54 @@ class PrivacyGateTests(unittest.TestCase):
             (module_dir / "module.json").write_text('{"module_id":"default","module_type":"default"}', encoding="utf-8")
             self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
+    def test_common_profile_allows_github_workflow_template_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            template_dir = root / "workflow-templates"
+            template_dir.mkdir()
+            (template_dir / "repository-release.properties.json").write_text(
+                json.dumps(
+                    {
+                        "name": "Repository Release Governance",
+                        "description": "Validate the repository release contract.",
+                        "categories": ["Automation"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(scan_worktree(root, profile="common"), [])
+
+    def test_workflow_template_metadata_requires_exact_shape_and_path(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            template_dir = root / "workflow-templates"
+            other_dir = root / "docs"
+            template_dir.mkdir()
+            other_dir.mkdir()
+            invalid = {
+                "name": "Repository Release Governance",
+                "description": "Validate the repository release contract.",
+                "unexpected": True,
+            }
+            (template_dir / "invalid.properties.json").write_text(
+                json.dumps(invalid),
+                encoding="utf-8",
+            )
+            (other_dir / "invalid.properties.json").write_text(
+                json.dumps(
+                    {
+                        "name": "Repository Release Governance",
+                        "description": "Validate the repository release contract.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="common")
+        self.assertEqual(
+            {item.rule for item in findings},
+            {"json-config-shape-invalid", "json-data-file-not-allowlisted"},
+        )
+
     def test_meshrix_profile_allows_fixed_json_shapes(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
