@@ -610,15 +610,23 @@ class ProjectPolicy:
     shape_marker_keys: frozenset[str] = frozenset(CONFIG_SHAPE_MARKER_KEYS)
 
 
+WORKFLOW_TEMPLATE_METADATA_PATH_PATTERN = re.compile(
+    r"workflow-templates/[a-z0-9][a-z0-9._-]*\.properties\.json"
+)
 COMMON_JSON_PATH_PATTERNS = (
     r"docs/releases/plan\.json",
     r"schemas/release-plan\.schema\.json",
+    WORKFLOW_TEMPLATE_METADATA_PATH_PATTERN.pattern,
     r"github/rulesets/[^/]+\.json",
     r"modules/[^/]+/module\.json",
     r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
     r"(?:.*/)?\.?mcp\.json",
     r"(?:.*/)?\.?codex-plugin/plugin\.json",
     r"(?:.*/)?\.?agents/plugins/marketplace\.json",
+)
+WORKFLOW_TEMPLATE_METADATA_REQUIRED_KEYS = frozenset({"name", "description"})
+WORKFLOW_TEMPLATE_METADATA_ALLOWED_KEYS = frozenset(
+    {"name", "description", "iconName", "categories", "filePatterns"}
 )
 RELEASE_PLAN_KEYS = frozenset(
     {
@@ -919,6 +927,42 @@ def json_object_keys(data: object) -> set[str]:
     return {str(key) for key in data.keys()} if isinstance(data, dict) else set()
 
 
+def is_workflow_template_metadata_shape(data: object) -> bool:
+    if not isinstance(data, dict):
+        return False
+    keys = json_object_keys(data)
+    if not WORKFLOW_TEMPLATE_METADATA_REQUIRED_KEYS <= keys:
+        return False
+    if not keys <= WORKFLOW_TEMPLATE_METADATA_ALLOWED_KEYS:
+        return False
+    for key, maximum in (("name", 160), ("description", 320)):
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+            return False
+    icon_name = data.get("iconName")
+    if icon_name is not None and (
+        not isinstance(icon_name, str) or not icon_name.strip() or len(icon_name) > 160
+    ):
+        return False
+    for key in ("categories", "filePatterns"):
+        values = data.get(key)
+        if values is None:
+            continue
+        if (
+            not isinstance(values, list)
+            or not values
+            or len(values) > 32
+            or any(
+                not isinstance(value, str)
+                or not value.strip()
+                or len(value) > 320
+                for value in values
+            )
+        ):
+            return False
+    return True
+
+
 def user_record_score(record: object) -> int:
     if not isinstance(record, dict):
         return 0
@@ -1166,6 +1210,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
         )
     if normalized == "schemas/release-plan.schema.json":
         return {"$schema", "$id", "type", "properties"} <= keys
+    if WORKFLOW_TEMPLATE_METADATA_PATH_PATTERN.fullmatch(normalized):
+        return is_workflow_template_metadata_shape(data)
     if normalized.startswith(JSON_LOCAL_OR_FIXTURE_SHAPE_PREFIXES):
         return True
     if name in {"mcp.json", ".mcp.json"}:

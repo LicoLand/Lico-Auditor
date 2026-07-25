@@ -51,6 +51,8 @@ history, or GitHub surfaces expose:
   JSONL/NDJSON, CSV/TSV, SQL dumps, database files, spreadsheets, parquet, and
   other export-like formats;
 - files in fixed configuration directories unless they are schema-checked JSON;
+- GitHub workflow-template metadata unless it uses the exact
+  `workflow-templates/*.properties.json` path and metadata shape;
 - allowlisted JSON that has user, customer, contact, account, or people
   record-shaped payloads;
 - any non-loopback IP literal;

@@ -98,8 +98,10 @@ names to the correct profile.
   other export-like formats;
 - fixed configuration directories must contain schema-checked JSON only;
 - allowlisted JSON must look like project configuration, registry, manifest, or
-  template objects, and user/customer/contact/account record-shaped JSON is
-  blocked even inside allowlisted paths;
+  template objects; GitHub workflow-template metadata is limited to the exact
+  `workflow-templates/*.properties.json` schema; and
+  user/customer/contact/account record-shaped JSON is blocked even inside
+  allowlisted paths;
 - any committed IP literal except local loopback;
 - host/domain endpoints outside localhost and the official `lico.land`,
   `licoland.com`, `meshrix.io`, `licomesh.com`, `licoup.com`, `licoup.net`,
