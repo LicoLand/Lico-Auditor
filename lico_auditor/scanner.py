@@ -11,7 +11,10 @@ from .models import Finding
 from .privacy_rules import (
     RULES,
     file_policy_violations,
+    historical_skills_template_successor_path,
+    is_verified_historical_template_successor,
     iter_text_files,
+    normalized_repo_path,
     policy_profile_for_repo_name,
     should_scan_text_rule,
     should_scan_file,
@@ -181,6 +184,73 @@ def _cat_blob_batch(repo_root: Path, blobs: list[tuple[bytes, str]]) -> list[tup
     return contents
 
 
+def _head_template_context(
+    repo_root: Path,
+    ref: str,
+    *,
+    profile: str,
+) -> tuple[set[str], dict[str, tuple[str, bytes] | None]]:
+    blobs, tree_error = _commit_blobs(repo_root, ref, profile=profile)
+    if tree_error is not None:
+        return set(), {}
+    head_paths = {normalized_repo_path(relative_path) for _oid, relative_path in blobs}
+    template_blobs: list[tuple[bytes, str]] = []
+    for oid, relative_path in blobs:
+        normalized = normalized_repo_path(relative_path)
+        if (
+            normalized.startswith("skills/")
+            and "/assets/" in normalized
+            and normalized.endswith(".template.json")
+        ):
+            template_blobs.append((oid, relative_path))
+    templates: dict[str, tuple[str, bytes] | None] = {}
+    for relative_path, raw in _cat_blob_batch(repo_root, template_blobs):
+        normalized = normalized_repo_path(relative_path)
+        if normalized in templates:
+            templates[normalized] = None
+        else:
+            templates[normalized] = (relative_path, raw)
+    return head_paths, templates
+
+
+def _historical_file_policy_findings(
+    relative_path: str,
+    raw: bytes,
+    *,
+    commit: str,
+    profile: str,
+    head_paths: set[str],
+    head_templates: dict[str, tuple[str, bytes] | None],
+) -> list[Finding]:
+    policy_findings = scan_file_policy(relative_path, raw, commit=commit, profile=profile)
+    if not any(item.rule == "json-data-file-not-allowlisted" for item in policy_findings):
+        return policy_findings
+    normalized = normalized_repo_path(relative_path)
+    successor_path = historical_skills_template_successor_path(relative_path, profile)
+    if successor_path is None or normalized in head_paths:
+        return policy_findings
+    successor = head_templates.get(normalized_repo_path(successor_path))
+    if successor is None:
+        return policy_findings
+    actual_successor_path, successor_raw = successor
+    if scan_file_policy(actual_successor_path, successor_raw, profile=profile):
+        return policy_findings
+    if b"\0" in successor_raw:
+        return policy_findings
+    successor_text = successor_raw.decode("utf-8", "replace")
+    if scan_text(actual_successor_path, successor_text):
+        return policy_findings
+    if not is_verified_historical_template_successor(
+        relative_path,
+        raw,
+        actual_successor_path,
+        successor_raw,
+        profile,
+    ):
+        return policy_findings
+    return [item for item in policy_findings if item.rule != "json-data-file-not-allowlisted"]
+
+
 def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0, profile: str | None = None) -> list[Finding]:
     scan_profile = resolve_scan_profile(repo_root, profile)
     revs = git(repo_root, ["rev-list", "--reverse", ref])
@@ -197,6 +267,7 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0, pr
     if max_commits > 0:
         commits = commits[-max_commits:]
     findings: list[Finding] = []
+    head_paths, head_templates = _head_template_context(repo_root, ref, profile=scan_profile)
     seen_blobs: set[tuple[bytes, str]] = set()
     for commit in commits:
         blobs, tree_error = _commit_blobs(repo_root, commit, profile=scan_profile)
@@ -210,7 +281,16 @@ def scan_history(repo_root: Path, *, ref: str = "HEAD", max_commits: int = 0, pr
             seen_blobs.add(blob)
             new_blobs.append(blob)
         for relative_path, raw in _cat_blob_batch(repo_root, new_blobs):
-            findings.extend(scan_file_policy(relative_path, raw, commit=commit, profile=scan_profile))
+            findings.extend(
+                _historical_file_policy_findings(
+                    relative_path,
+                    raw,
+                    commit=commit,
+                    profile=scan_profile,
+                    head_paths=head_paths,
+                    head_templates=head_templates,
+                )
+            )
             if b"\0" in raw:
                 continue
             text = raw.decode("utf-8", "replace")
