@@ -50,9 +50,11 @@ Repository-specific profiles only define what engineering files are allowed:
 - `website` for `LicoLand/licomesh.com`: admits only common website/build
   metadata such as package and TypeScript config JSON; arbitrary content/data
   JSON is denied by default.
-- `skills` for `LicoLand/Lico-Dev`: admits template JSON only at
-  `skills/*/assets/*.template.json` plus common build metadata; operational or
-  customer-like data files remain denied.
+- `skills` for `LicoLand/Lico-Dev`: admits strictly shaped canonical
+  repository-policy JSON under `config/`, canonical skill/workflow manifests,
+  template JSON at `skills/*/assets/*.template.json`, and common build
+  metadata. Unknown fields, operational data, and customer-like data remain
+  denied.
 - `common` for organization and retained support repositories: no product-specific
   config paths are inherited.
 

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import os
+import io
 import json
+import os
 import re
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
-from lico_auditor.cli import collect_findings
+from lico_auditor.cli import collect_findings, main
 from lico_auditor.contribution_rules import (
     scan_contributor_attribution,
     scan_git_contribution_governance,
@@ -21,8 +23,15 @@ class ContributionGovernanceTests(unittest.TestCase):
         subprocess.run(["git", "config", "user.name", "Audit Test"], cwd=root, check=True)
         subprocess.run(["git", "config", "user.email", "audit@example.test"], cwd=root, check=True)
 
-    def commit(self, root: Path, message: str, *, author_name: str = "Audit Test") -> None:
-        (root / "tracked.txt").write_text(message, encoding="utf-8")
+    def commit(
+        self,
+        root: Path,
+        message: str,
+        *,
+        author_name: str = "Audit Test",
+        content: str | None = None,
+    ) -> None:
+        (root / "tracked.txt").write_text(content if content is not None else message, encoding="utf-8")
         subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
         environment = os.environ.copy()
         environment.update(
@@ -37,6 +46,12 @@ class ContributionGovernanceTests(unittest.TestCase):
             check=True,
             env=environment,
         )
+
+    def run_json_gate(self, root: Path, *args: str) -> tuple[int, list[dict[str, object]]]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = main(["gate", "--repo", str(root), "--format", "json", *args])
+        return status, json.loads(output.getvalue())
 
     def test_cursor_in_contributors_file_is_blocked(self) -> None:
         findings = scan_contributor_attribution("CONTRIBUTORS.md", "- Cursor AI\n")
@@ -68,6 +83,50 @@ class ContributionGovernanceTests(unittest.TestCase):
             findings = collect_findings(root, include_history=True, include_contribution=False)
 
         self.assertNotIn("cursor-commit-attribution", {item.rule for item in findings})
+
+    def test_cli_current_gate_still_blocks_new_cursor_attribution(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.init_repo(root)
+            self.commit(
+                root,
+                "implement feature\n\nCo-authored-by: Cursor Bot <bot@example.test>",
+                content="public",
+            )
+            status, findings = self.run_json_gate(root)
+
+        self.assertEqual(status, 1)
+        self.assertIn("cursor-commit-attribution", {str(item["rule"]) for item in findings})
+
+    def test_cli_history_no_contribution_keeps_content_gate_without_legacy_attribution(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.init_repo(root)
+            self.commit(
+                root,
+                "initial\n\nCo-authored-by: Cursor Bot <bot@example.test>",
+                content="public",
+            )
+            self.commit(root, "advance head")
+
+            clean_status, clean_findings = self.run_json_gate(root, "--history", "--no-contribution")
+            self.assertEqual(clean_status, 0)
+            self.assertEqual(clean_findings, [])
+
+            evidence = root / "historical.txt"
+            evidence.write_text("/" + "Users/example/private", encoding="utf-8")
+            subprocess.run(["git", "add", "historical.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "add historical evidence"], cwd=root, check=True)
+            evidence.unlink()
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "remove historical evidence"], cwd=root, check=True)
+
+            failed_status, failed_findings = self.run_json_gate(root, "--history", "--no-contribution")
+
+        rules = {str(item["rule"]) for item in failed_findings}
+        self.assertEqual(failed_status, 1)
+        self.assertIn("developer-macos-home-path", rules)
+        self.assertNotIn("cursor-commit-attribution", rules)
 
     def test_cursor_commit_trailer_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

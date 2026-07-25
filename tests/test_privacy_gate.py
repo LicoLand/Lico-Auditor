@@ -899,7 +899,7 @@ class PrivacyGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             fixtures = {
-                "config/repositories.json": '{"schemaVersion":1,"repositories":[]}',
+                "config/repositories.json": '{"schemaVersion":1,"repositories":{}}',
                 "skills/catalog.json": '{"schemaVersion":1,"skills":[]}',
                 "skills/skills.lock.json": '{"schemaVersion":1,"skills":{}}',
                 "workflows/catalog.json": '{"schemaVersion":1,"profiles":{},"tasks":[]}',
@@ -909,6 +909,100 @@ class PrivacyGateTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
             self.assertEqual(scan_worktree(root, profile="skills"), [])
+
+    def test_skills_profile_allows_historical_canonical_developer_intent_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "config/developer-intent.json"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "canonicalEntrypoint": "instructions.md",
+                        "forbiddenEntrypoints": ["legacy-instructions.md"],
+                        "nestedEntrypointPolicy": {
+                            "inheritancePattern": "root-owned",
+                            "requireSharedRulesOrRootInheritance": True,
+                        },
+                        "sharedRules": [{"id": "privacy", "text": "Use synthetic fixtures."}],
+                        "repositories": {
+                            "workspace": {
+                                "workspaceRoot": True,
+                                "scanNested": True,
+                                "overlay": ["privacy"],
+                            },
+                            "example-service": {
+                                "packageName": "example-service",
+                                "directoryNames": ["Example-Service"],
+                                "overlay": ["privacy"],
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(scan_worktree(root, profile="skills"), [])
+
+    def test_skills_canonical_config_rejects_unknown_top_level_key(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "config/repositories.json"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                '{"schemaVersion":1,"repositories":{},"users":[]}',
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="skills")
+        self.assertEqual([item.rule for item in findings], ["json-config-shape-invalid"])
+
+    def test_skills_canonical_config_rejects_sensitive_repository_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "config/repositories.json"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                '{"schemaVersion":1,"repositories":{"example":{"directoryNames":["Example"],"token":"example","endpoint":"synthetic"}}}',
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="skills")
+        self.assertEqual([item.rule for item in findings], ["json-config-shape-invalid"])
+
+    def test_skills_canonical_config_rejects_wrong_field_types(self) -> None:
+        invalid_configs = (
+            {"schemaVersion": "1", "repositories": {}},
+            {"schemaVersion": 1, "repositories": []},
+            {
+                "schemaVersion": 1,
+                "repositories": {"example": {"directoryNames": "Example"}},
+            },
+            {
+                "schemaVersion": 1,
+                "repositories": {"example": {"scanNested": "true"}},
+            },
+            {
+                "schemaVersion": 1,
+                "repositories": {},
+                "sharedRules": [{"id": "privacy"}],
+            },
+        )
+        for index, data in enumerate(invalid_configs):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                target = root / "config/repositories.json"
+                target.parent.mkdir(parents=True)
+                target.write_text(json.dumps(data), encoding="utf-8")
+                findings = scan_worktree(root, profile="skills")
+            self.assertEqual([item.rule for item in findings], ["json-config-shape-invalid"])
+
+    def test_skills_profile_rejects_noncanonical_config_file_names(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "config/local_state.json"
+            target.parent.mkdir(parents=True)
+            target.write_text('{"schemaVersion":1,"repositories":{}}', encoding="utf-8")
+            findings = scan_worktree(root, profile="skills")
+        self.assertEqual([item.rule for item in findings], ["json-data-file-not-allowlisted"])
 
     def test_common_profile_rejects_skill_template_json(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
