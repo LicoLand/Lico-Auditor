@@ -231,6 +231,13 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://github.com/LicoLand/Meshrix"), [])
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://csrc.nist.gov/pubs/example"), [])
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://www.rfc-editor.org/rfc/example"), [])
+        self.assertEqual(
+            scan_text(
+                "templates/repository/tools/release/verify-version-governance",
+                "https://raw.githubusercontent.com/LicoLand/.github/example/tools/release_governance.py",
+            ),
+            [],
+        )
         findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/Meshrix")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
@@ -545,6 +552,41 @@ class PrivacyGateTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            findings = scan_worktree(root, profile="common")
+        self.assertEqual(
+            [item.rule for item in findings],
+            ["json-config-shape-invalid"],
+        )
+
+    def test_all_profiles_allow_the_release_plan_schema_contract(self) -> None:
+        schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://licoland.com/schemas/release-plan.schema.json",
+            "type": "object",
+            "properties": {},
+        }
+        for profile in (
+            "common",
+            "meshrix",
+            "licoup",
+            "badtower",
+            "fabrigent",
+            "website",
+            "skills",
+        ):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                target = root / "schemas/release-plan.schema.json"
+                target.parent.mkdir(parents=True)
+                target.write_text(json.dumps(schema) + "\n", encoding="utf-8")
+                self.assertEqual(scan_worktree(root, profile=profile), [])
+
+    def test_release_plan_schema_rejects_unowned_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            target = root / "schemas/release-plan.schema.json"
+            target.parent.mkdir(parents=True)
+            target.write_text('{"type":"object"}\n', encoding="utf-8")
             findings = scan_worktree(root, profile="common")
         self.assertEqual(
             [item.rule for item in findings],

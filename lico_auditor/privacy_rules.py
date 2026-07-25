@@ -612,6 +612,7 @@ class ProjectPolicy:
 
 COMMON_JSON_PATH_PATTERNS = (
     r"docs/releases/plan\.json",
+    r"schemas/release-plan\.schema\.json",
     r"github/rulesets/[^/]+\.json",
     r"modules/[^/]+/module\.json",
     r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
@@ -902,6 +903,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
                 "component-semver",
             }
         )
+    if normalized == "schemas/release-plan.schema.json":
+        return {"$schema", "$id", "type", "properties"} <= keys
     if normalized.startswith(JSON_LOCAL_OR_FIXTURE_SHAPE_PREFIXES):
         return True
     if name in {"mcp.json", ".mcp.json"}:
@@ -1082,7 +1085,12 @@ def is_public_reference_path(relative_path: str) -> bool:
         or name.endswith((".schema.json", ".svg", ".xml"))
         or "runtime-dependencies" in normalized
         or "environment-compatibility" in normalized
-        or normalized.startswith("tools/release/")
+        or normalized.startswith(
+            (
+                "tools/release/",
+                "templates/repository/tools/release/",
+            )
+        )
         or normalized.startswith(
             (
                 "tools/server-scripts/mcp-",
