@@ -106,6 +106,31 @@ class PrivacyGateTests(unittest.TestCase):
         subprocess.run(["git", "add", "-A"], cwd=root, check=True)
         subprocess.run(["git", "commit", "-q", "-m", message], cwd=root, check=True)
 
+    def commit_historical_template_transition(
+        self,
+        root: Path,
+        historical_content: str,
+        *,
+        successor_content: str | None,
+        keep_historical_path: bool = False,
+        track_successor: bool = True,
+    ) -> tuple[Path, Path]:
+        self.init_git_repo(root)
+        asset_dir = root / "skills/example-skill/assets"
+        asset_dir.mkdir(parents=True)
+        historical_path = asset_dir / "contract.json"
+        successor_path = asset_dir / "contract.template.json"
+        historical_path.write_text(historical_content, encoding="utf-8")
+        self.commit_all(root, "add historical template")
+        if not keep_historical_path:
+            historical_path.unlink()
+        if successor_content is not None and track_successor:
+            successor_path.write_text(successor_content, encoding="utf-8")
+        self.commit_all(root, "normalize template path")
+        if successor_content is not None and not track_successor:
+            successor_path.write_text(successor_content, encoding="utf-8")
+        return historical_path, successor_path
+
     def test_history_collection_does_not_double_count_clean_head(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -894,6 +919,158 @@ class PrivacyGateTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(scan_worktree(root, profile="skills"), [])
+
+    def test_skills_history_allows_strictly_verified_template_rename(self) -> None:
+        template = {
+            "schemaVersion": 1,
+            "scenario": "replace-with-scenario",
+            "surfaces": [
+                {
+                    "id": "replace-with-surface",
+                    "paths": [],
+                    "status": "pending",
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.commit_historical_template_transition(
+                root,
+                json.dumps(template, separators=(",", ":")),
+                successor_content=json.dumps(template, indent=2, sort_keys=True),
+            )
+            findings = scan_history(root, profile="skills")
+        self.assertEqual(findings, [])
+
+    def test_skills_history_template_successor_proof_fails_closed(self) -> None:
+        valid = {
+            "schemaVersion": 1,
+            "scenario": "replace-with-scenario",
+            "surfaces": [],
+        }
+        deep: object = "replace-with-value"
+        for _index in range(26):
+            deep = [deep]
+        cases = (
+            ("missing-successor", json.dumps(valid), None, False, True),
+            (
+                "content-mismatch",
+                json.dumps(valid),
+                json.dumps({**valid, "scenario": "replace-with-other-scenario"}),
+                False,
+                True,
+            ),
+            ("old-path-still-present", json.dumps(valid), json.dumps(valid), True, True),
+            ("successor-untracked", json.dumps(valid), json.dumps(valid), False, False),
+            (
+                "duplicate-key",
+                '{"schemaVersion":1,"schemaVersion":1,"scenario":"replace-with-scenario"}',
+                '{"schemaVersion":1,"schemaVersion":1,"scenario":"replace-with-scenario"}',
+                False,
+                True,
+            ),
+            (
+                "non-finite-number",
+                '{"schemaVersion":1,"scenario":"replace-with-scenario","weight":NaN}',
+                '{"schemaVersion":1,"scenario":"replace-with-scenario","weight":NaN}',
+                False,
+                True,
+            ),
+            (
+                "no-strong-placeholder",
+                json.dumps({**valid, "scenario": "example"}),
+                json.dumps({**valid, "scenario": "example"}),
+                False,
+                True,
+            ),
+            (
+                "sensitive-key",
+                json.dumps({**valid, "token": "replace-with-token"}),
+                json.dumps({**valid, "token": "replace-with-token"}),
+                False,
+                True,
+            ),
+            (
+                "runtime-metadata-key",
+                json.dumps({**valid, "endpoint": "replace-with-endpoint"}),
+                json.dumps({**valid, "endpoint": "replace-with-endpoint"}),
+                False,
+                True,
+            ),
+            (
+                "user-record-shape",
+                json.dumps(
+                    {
+                        **valid,
+                        "users": [
+                            {
+                                "name": "replace-with-name",
+                                "email": "replace-with-email",
+                            }
+                        ],
+                    }
+                ),
+                json.dumps(
+                    {
+                        **valid,
+                        "users": [
+                            {
+                                "name": "replace-with-name",
+                                "email": "replace-with-email",
+                            }
+                        ],
+                    }
+                ),
+                False,
+                True,
+            ),
+            (
+                "excessive-depth",
+                json.dumps({**valid, "nested": deep}),
+                json.dumps({**valid, "nested": deep}),
+                False,
+                True,
+            ),
+            (
+                "excessive-size",
+                json.dumps({**valid, "description": "x" * (256 * 1024)}),
+                json.dumps({**valid, "description": "x" * (256 * 1024)}),
+                False,
+                True,
+            ),
+        )
+        for name, historical, successor, keep_old, track_successor in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                self.commit_historical_template_transition(
+                    root,
+                    historical,
+                    successor_content=successor,
+                    keep_historical_path=keep_old,
+                    track_successor=track_successor,
+                )
+                findings = scan_history(root, profile="skills")
+            self.assertIn("json-data-file-not-allowlisted", {item.rule for item in findings})
+
+    def test_skills_history_successor_never_suppresses_other_privacy_findings(self) -> None:
+        content = json.dumps(
+            {
+                "schemaVersion": 1,
+                "scenario": "replace-with-scenario",
+                "notes": macos_home_path("example/private"),
+            }
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.commit_historical_template_transition(
+                root,
+                content,
+                successor_content=content,
+            )
+            findings = scan_history(root, profile="skills")
+        rules = {item.rule for item in findings}
+        self.assertIn("json-data-file-not-allowlisted", rules)
+        self.assertIn("developer-macos-home-path", rules)
 
     def test_skills_profile_allows_only_canonical_repository_json_manifests(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

@@ -692,6 +692,43 @@ SKILLS_NESTED_ENTRYPOINT_POLICY_KEYS = frozenset(
         "requireSharedRulesOrRootInheritance",
     }
 )
+SKILLS_HISTORICAL_TEMPLATE_PATH_PATTERN = re.compile(
+    r"skills/[a-z0-9][a-z0-9-]*/assets/[a-z0-9][a-z0-9._-]*\.json"
+)
+HISTORICAL_TEMPLATE_MAX_BYTES = 256 * 1024
+HISTORICAL_TEMPLATE_MAX_DEPTH = 24
+HISTORICAL_TEMPLATE_MAX_NODES = 10_000
+HISTORICAL_TEMPLATE_KEY_PATTERN = re.compile(r"[A-Za-z_$][A-Za-z0-9_$.-]{0,127}")
+HISTORICAL_TEMPLATE_PLACEHOLDER_PATTERN = re.compile(
+    r"(?<![a-z0-9])replace-with-[a-z0-9][a-z0-9-]*(?![a-z0-9])",
+    re.IGNORECASE,
+)
+HISTORICAL_TEMPLATE_FORBIDDEN_KEY_TOKENS = frozenset(
+    {
+        "account",
+        "business",
+        "contact",
+        "credential",
+        "customer",
+        "device",
+        "email",
+        "endpoint",
+        "evidence",
+        "hostname",
+        "identity",
+        "password",
+        "phone",
+        "production",
+        "record",
+        "result",
+        "revenue",
+        "runtime",
+        "secret",
+        "tenant",
+        "token",
+        "user",
+    }
+)
 LICOUP_JSON_PATH_PATTERNS = (
     r"vscode/settings\.json",
     r"apps/desktop/assets/agent-render-adapters/[^/]+\.json",
@@ -976,6 +1013,130 @@ def is_skills_canonical_config_shape(data: object) -> bool:
         ):
             return False
     return True
+
+
+def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(_value: str) -> object:
+    raise ValueError("non-finite JSON number")
+
+
+def strict_canonical_json(raw: bytes) -> tuple[object, bytes] | None:
+    if len(raw) > HISTORICAL_TEMPLATE_MAX_BYTES:
+        return None
+    try:
+        text = raw.decode("utf-8", "strict")
+        data = json.loads(
+            text,
+            object_pairs_hook=_strict_json_object,
+            parse_constant=_reject_json_constant,
+        )
+        canonical = json.dumps(
+            data,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (UnicodeDecodeError, ValueError, TypeError, OverflowError, RecursionError):
+        return None
+    return data, canonical
+
+
+def _normalized_template_key_tokens(key: str) -> set[str]:
+    camel_split = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", key)
+    tokens = {
+        token
+        for token in re.split(r"[^a-z0-9]+", camel_split.lower())
+        if token
+    }
+    return tokens | {token[:-1] for token in tokens if len(token) > 3 and token.endswith("s")}
+
+
+def is_conservative_json_template(data: object) -> bool:
+    if not isinstance(data, dict):
+        return False
+    nodes = 0
+    has_placeholder = False
+    stack: list[tuple[object, int]] = [(data, 0)]
+    while stack:
+        value, depth = stack.pop()
+        nodes += 1
+        if nodes > HISTORICAL_TEMPLATE_MAX_NODES or depth > HISTORICAL_TEMPLATE_MAX_DEPTH:
+            return False
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if not isinstance(key, str) or not HISTORICAL_TEMPLATE_KEY_PATTERN.fullmatch(key):
+                    return False
+                if _normalized_template_key_tokens(key) & HISTORICAL_TEMPLATE_FORBIDDEN_KEY_TOKENS:
+                    return False
+                stack.append((item, depth + 1))
+        elif isinstance(value, list):
+            stack.extend((item, depth + 1) for item in value)
+        elif isinstance(value, str):
+            has_placeholder = has_placeholder or bool(
+                HISTORICAL_TEMPLATE_PLACEHOLDER_PATTERN.search(value)
+            )
+        elif isinstance(value, float):
+            if not math.isfinite(value):
+                return False
+        elif value is not None and type(value) not in {bool, int}:
+            return False
+    return has_placeholder
+
+
+def historical_skills_template_successor_path(
+    relative_path: str,
+    profile: str | None,
+) -> str | None:
+    policy = policy_for_profile(profile)
+    normalized = normalized_repo_path(relative_path)
+    if policy.policy_id != "skills":
+        return None
+    if relative_path.replace("\\", "/").lstrip("./") != normalized:
+        return None
+    if not SKILLS_HISTORICAL_TEMPLATE_PATH_PATTERN.fullmatch(normalized):
+        return None
+    if normalized.endswith(".template.json"):
+        return None
+    return f"{normalized[:-5]}.template.json"
+
+
+def is_verified_historical_template_successor(
+    relative_path: str,
+    historical_raw: bytes,
+    successor_path: str,
+    successor_raw: bytes,
+    profile: str | None,
+) -> bool:
+    expected_successor = historical_skills_template_successor_path(relative_path, profile)
+    if (
+        expected_successor is None
+        or successor_path.replace("\\", "/").lstrip("./") != expected_successor
+        or normalized_repo_path(successor_path) != expected_successor
+    ):
+        return False
+    policy = policy_for_profile(profile)
+    if not is_allowed_json_config_path(successor_path, policy):
+        return False
+    historical = strict_canonical_json(historical_raw)
+    successor = strict_canonical_json(successor_raw)
+    if historical is None or successor is None:
+        return False
+    historical_data, historical_canonical = historical
+    successor_data, successor_canonical = successor
+    return (
+        historical_canonical == successor_canonical
+        and historical_data == successor_data
+        and is_conservative_json_template(successor_data)
+    )
 
 
 def is_allowed_json_config_shape(relative_path: str, data: object, policy: ProjectPolicy | None = None) -> bool:
