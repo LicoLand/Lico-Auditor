@@ -611,12 +611,27 @@ class ProjectPolicy:
 
 
 COMMON_JSON_PATH_PATTERNS = (
+    r"docs/releases/plan\.json",
     r"github/rulesets/[^/]+\.json",
     r"modules/[^/]+/module\.json",
     r"(?:.*/)?tsconfig\.[a-z0-9_.-]+\.json",
     r"(?:.*/)?\.?mcp\.json",
     r"(?:.*/)?\.?codex-plugin/plugin\.json",
     r"(?:.*/)?\.?agents/plugins/marketplace\.json",
+)
+RELEASE_PLAN_KEYS = frozenset(
+    {
+        "$schema",
+        "schemaVersion",
+        "repository",
+        "profile",
+        "currentVersion",
+        "versionSources",
+        "changelog",
+        "nextRelease",
+        "releases",
+        "components",
+    }
 )
 MESHRIX_JSON_PATH_PATTERNS = (
     r"apps/console/appearance-presets/[^/]+\.json",
@@ -873,6 +888,20 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     keys = json_object_keys(data)
     if not keys:
         return True
+    if normalized == "docs/releases/plan.json":
+        return (
+            keys == RELEASE_PLAN_KEYS
+            and data.get("schemaVersion") == 1
+            and isinstance(data.get("repository"), str)
+            and data.get("profile")
+            in {
+                "governance",
+                "continuous-site",
+                "inactive",
+                "semver",
+                "component-semver",
+            }
+        )
     if normalized.startswith(JSON_LOCAL_OR_FIXTURE_SHAPE_PREFIXES):
         return True
     if name in {"mcp.json", ".mcp.json"}:
