@@ -103,3 +103,10 @@ See [PRIVACY-GATE.md](docs/specs/PRIVACY-GATE.md).
 See
 [DOCUMENTATION-GOVERNANCE.md](docs/specs/DOCUMENTATION-GOVERNANCE.md)
 for the four current product profiles' documentation audit contract.
+
+## Version governance
+
+The structured repository version authority is
+[`docs/releases/plan.json`](docs/releases/plan.json). Its generated
+human-readable projection is
+[`docs/releases/README.md`](docs/releases/README.md).

@@ -1,0 +1,25 @@
+name: version-governance
+
+on:
+  pull_request:
+  push:
+    tags:
+      - "v*.*.*"
+      - "*-v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version-governance:
+    uses: LicoLand/.github/.github/workflows/reusable-version-governance.yml@cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3
+    with:
+      governance-ref: "cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3"
+      target-repository: ${{ github.repository }}
+      target-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      expected-repository: ${{ github.repository }}
+      plan-path: docs/releases/plan.json
+      tag: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+      require_tag: ${{ github.ref_type == 'tag' }}
+      github-check: false
