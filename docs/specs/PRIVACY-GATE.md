@@ -32,9 +32,12 @@ The gate is layered:
 - `website` applies to official public website repositories. It does not inherit Meshrix
   configuration paths; arbitrary JSON content/data files are denied unless a
   future website-specific schema is added here.
-- `skills` applies to `LicoLand/Lico-Dev`. It admits template JSON only at
-  `skills/*/assets/*.template.json` plus common build metadata, but not
-  operational exports, databases, or customer-shaped data.
+- `skills` applies to `LicoLand/Lico-Dev`. It admits canonical
+  `config/<canonical-name>.json` repository-policy objects under a strict
+  field-and-type schema, canonical skill/workflow manifests, template JSON at
+  `skills/*/assets/*.template.json`, and common build metadata. Unknown
+  configuration fields fail closed; operational exports, databases, and
+  customer-shaped data remain denied.
 
 The centralized Action checks targets out under `target/`, so it must pass the
 profile explicitly. Repository-local workflows may use `auto`, which maps known

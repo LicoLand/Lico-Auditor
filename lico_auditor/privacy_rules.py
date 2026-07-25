@@ -658,11 +658,39 @@ MESHRIX_JSON_PATH_PATTERNS = (
     r"tools/release/[^/]+\.lock\.json",
 )
 SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
-    r"config/repositories\.json",
+    r"config/[a-z0-9][a-z0-9-]*\.json",
     r"skills/catalog\.json",
     r"skills/skills\.lock\.json",
     r"skills/[^/]+/assets/[^/]+\.template\.json",
     r"workflows/catalog\.json",
+)
+SKILLS_CANONICAL_CONFIG_PATH_PATTERN = re.compile(r"config/[a-z0-9][a-z0-9-]*\.json")
+SKILLS_CANONICAL_CONFIG_KEYS = frozenset(
+    {
+        "schemaVersion",
+        "repositories",
+        "canonicalEntrypoint",
+        "forbiddenEntrypoints",
+        "nestedEntrypointPolicy",
+        "sharedRules",
+    }
+)
+SKILLS_REPOSITORY_RECORD_KEYS = frozenset(
+    {
+        "directoryNames",
+        "packageName",
+        "skill",
+        "title",
+        "workspaceRoot",
+        "overlay",
+        "scanNested",
+    }
+)
+SKILLS_NESTED_ENTRYPOINT_POLICY_KEYS = frozenset(
+    {
+        "inheritancePattern",
+        "requireSharedRulesOrRootInheritance",
+    }
 )
 LICOUP_JSON_PATH_PATTERNS = (
     r"vscode/settings\.json",
@@ -880,10 +908,82 @@ def looks_like_user_record_collection(data: object) -> bool:
     return False
 
 
+def is_non_empty_string(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def is_string_list(value: object) -> bool:
+    return isinstance(value, list) and all(is_non_empty_string(item) for item in value)
+
+
+def is_skills_repository_record(record: object) -> bool:
+    if not isinstance(record, dict):
+        return False
+    keys = json_object_keys(record)
+    if not keys <= SKILLS_REPOSITORY_RECORD_KEYS:
+        return False
+    string_fields = ("packageName", "title")
+    if any(field in record and not is_non_empty_string(record[field]) for field in string_fields):
+        return False
+    if "skill" in record and record["skill"] is not None and not is_non_empty_string(record["skill"]):
+        return False
+    list_fields = ("directoryNames", "overlay")
+    if any(field in record and not is_string_list(record[field]) for field in list_fields):
+        return False
+    boolean_fields = ("workspaceRoot", "scanNested")
+    return not any(field in record and type(record[field]) is not bool for field in boolean_fields)
+
+
+def is_skills_canonical_config_shape(data: object) -> bool:
+    if not isinstance(data, dict):
+        return False
+    keys = json_object_keys(data)
+    if not {"schemaVersion", "repositories"} <= keys or not keys <= SKILLS_CANONICAL_CONFIG_KEYS:
+        return False
+    if type(data["schemaVersion"]) is not int or not isinstance(data["repositories"], dict):
+        return False
+    repositories = data["repositories"]
+    if any(
+        not re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(name))
+        or not is_skills_repository_record(record)
+        for name, record in repositories.items()
+    ):
+        return False
+    if "canonicalEntrypoint" in data and not is_non_empty_string(data["canonicalEntrypoint"]):
+        return False
+    if "forbiddenEntrypoints" in data and not is_string_list(data["forbiddenEntrypoints"]):
+        return False
+    if "nestedEntrypointPolicy" in data:
+        nested_policy = data["nestedEntrypointPolicy"]
+        if not isinstance(nested_policy, dict):
+            return False
+        if json_object_keys(nested_policy) != SKILLS_NESTED_ENTRYPOINT_POLICY_KEYS:
+            return False
+        if not is_non_empty_string(nested_policy["inheritancePattern"]):
+            return False
+        if type(nested_policy["requireSharedRulesOrRootInheritance"]) is not bool:
+            return False
+    if "sharedRules" in data:
+        shared_rules = data["sharedRules"]
+        if not isinstance(shared_rules, list):
+            return False
+        if any(
+            not isinstance(rule, dict)
+            or json_object_keys(rule) != {"id", "text"}
+            or not is_non_empty_string(rule["id"])
+            or not is_non_empty_string(rule["text"])
+            for rule in shared_rules
+        ):
+            return False
+    return True
+
+
 def is_allowed_json_config_shape(relative_path: str, data: object, policy: ProjectPolicy | None = None) -> bool:
     selected = policy or PROJECT_POLICIES["common"]
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
+    if selected.policy_id == "skills" and SKILLS_CANONICAL_CONFIG_PATH_PATTERN.fullmatch(normalized):
+        return is_skills_canonical_config_shape(data)
     if not isinstance(data, dict):
         return isinstance(data, list) and normalized.startswith(JSON_LIST_SHAPE_PREFIXES)
     keys = json_object_keys(data)
