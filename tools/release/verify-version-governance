@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-governance_ref="cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3"
+governance_ref="0875118889c39df343afeb6f4aa6e82f9690cc4d"
 expected_digest="cde1e2c6daa91b428249932571f7ad792158c9307db572a066d34b3e4bc91110"
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"

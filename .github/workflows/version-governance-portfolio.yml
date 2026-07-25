@@ -21,16 +21,16 @@ permissions:
 jobs:
   pull-request-portfolio:
     if: ${{ github.event_name == 'pull_request_target' }}
-    uses: LicoLand/.github/.github/workflows/reusable-version-governance.yml@cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3
+    uses: LicoLand/.github/.github/workflows/reusable-version-governance.yml@0875118889c39df343afeb6f4aa6e82f9690cc4d
     with:
-      governance-ref: "cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3"
-      target-repository: ${{ github.event.pull_request.head.repo.full_name }}
-      target-ref: ${{ github.event.pull_request.head.sha }}
-      expected-repository: ${{ github.repository }}
-      plan-path: docs/releases/plan.json
-      github-check: true
-      project-owner: LicoLand
-      project-title: LicoLand Release Portfolio
+      governance_ref: "0875118889c39df343afeb6f4aa6e82f9690cc4d"
+      target_repository: ${{ github.event.pull_request.head.repo.full_name }}
+      target_ref: ${{ github.event.pull_request.head.sha }}
+      expected_repository: ${{ github.repository }}
+      plan_path: docs/releases/plan.json
+      github_check: true
+      project_owner: LicoLand
+      project_title: LicoLand Release Portfolio
 
   tag-portfolio:
     if: >-
@@ -39,15 +39,15 @@ jobs:
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push'
       }}
-    uses: LicoLand/.github/.github/workflows/reusable-version-governance.yml@cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3
+    uses: LicoLand/.github/.github/workflows/reusable-version-governance.yml@0875118889c39df343afeb6f4aa6e82f9690cc4d
     with:
-      governance-ref: "cd1dd8cbd29bbecdc1e41dc00b149fdff80de9a3"
-      target-repository: ${{ github.repository }}
-      target-ref: ${{ github.event.workflow_run.head_sha }}
-      expected-repository: ${{ github.repository }}
-      plan-path: docs/releases/plan.json
+      governance_ref: "0875118889c39df343afeb6f4aa6e82f9690cc4d"
+      target_repository: ${{ github.repository }}
+      target_ref: ${{ github.event.workflow_run.head_sha }}
+      expected_repository: ${{ github.repository }}
+      plan_path: docs/releases/plan.json
       tag: ${{ github.event.workflow_run.head_branch }}
       require_tag: true
-      github-check: true
-      project-owner: LicoLand
-      project-title: LicoLand Release Portfolio
+      github_check: true
+      project_owner: LicoLand
+      project_title: LicoLand Release Portfolio
