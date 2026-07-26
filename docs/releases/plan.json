@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/LicoLand/.github/main/schemas/release-plan.schema.json",
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "repository": "LicoLand/Lico-Auditor",
   "profile": "semver",
   "currentVersion": "0.1.0",
