@@ -1197,7 +1197,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     if normalized == "docs/releases/plan.json":
         return (
             keys == RELEASE_PLAN_KEYS
-            and data.get("schemaVersion") == 1
+            and type(data.get("schemaVersion")) is int
+            and data["schemaVersion"] in {1, 2}
             and isinstance(data.get("repository"), str)
             and data.get("profile")
             in {
