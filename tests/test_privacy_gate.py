@@ -512,13 +512,13 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "json-data-file-not-allowlisted")
 
-    def test_all_profiles_allow_the_exact_release_plan_contract(self) -> None:
+    def test_all_profiles_allow_the_exact_release_plan_v2_contract(self) -> None:
         release_plan = {
             "$schema": (
                 "https://raw.githubusercontent.com/LicoLand/.github/main/"
                 "schemas/release-plan.schema.json"
             ),
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "repository": "LicoLand/example",
             "profile": "semver",
             "currentVersion": "0.1.0",
@@ -552,6 +552,36 @@ class PrivacyGateTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 self.assertEqual(scan_worktree(root, profile=profile), [])
+
+    def test_release_plan_rejects_unsupported_schema_versions(self) -> None:
+        for schema_version in (3, True):
+            with self.subTest(schema_version=schema_version), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                target = root / "docs/releases/plan.json"
+                target.parent.mkdir(parents=True)
+                target.write_text(
+                    json.dumps(
+                        {
+                            "$schema": "https://example.invalid/schema.json",
+                            "schemaVersion": schema_version,
+                            "repository": "LicoLand/example",
+                            "profile": "semver",
+                            "currentVersion": None,
+                            "versionSources": [],
+                            "changelog": None,
+                            "nextRelease": None,
+                            "releases": [],
+                            "components": [],
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                findings = scan_worktree(root, profile="common")
+            self.assertEqual(
+                [item.rule for item in findings],
+                ["json-config-shape-invalid"],
+            )
 
     def test_release_plan_rejects_extra_data_shape(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
