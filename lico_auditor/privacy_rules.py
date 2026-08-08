@@ -143,24 +143,6 @@ SYNTHETIC_TEST_NOISE_RULES = frozenset(
         "system-or-deployment-path",
     }
 )
-STRICT_JSON_CONFIG_PREFIXES = (
-    "packages/foundation/config/",
-    "packages/server-runtime/config/",
-    "tools/registry/",
-)
-ALLOWED_NON_JSON_CONFIG_PATHS = {
-    "packages/foundation/config/deployment/README.md",
-    "packages/foundation/config/entity-config/README.md",
-    "packages/foundation/config/entity-config/playbooks/knowledge-playbook-framework/README.md",
-    "packages/foundation/config/entity-config/runbooks/project-release-runbook/README.md",
-    "packages/foundation/config/frontend-feature-registry.yaml",
-    "packages/server-runtime/config/context-profiles/test.mjs",
-    "tools/registry/architecture-layout-facade.mjs",
-    "tools/registry/architecture-layout-manifest.mjs",
-    "tools/registry/index.mjs",
-    "tools/registry/source-layout-manifest.mjs",
-    "tools/registry/test-suite-reachability.mjs",
-}
 # List-shaped JSON registries: conformance vectors, local-only planning
 # checkpoint registries, and capability acceptance checkpoint registries.
 JSON_LIST_SHAPE_PREFIXES = (
@@ -174,9 +156,6 @@ JSON_LOCAL_OR_FIXTURE_SHAPE_PREFIXES = (
     "docs/plans/",
     "docs/reports/",
     "packages/contracts/src/fixtures/",
-)
-JSON_TEMPLATE_PREFIXES = (
-    "fixtures/external-services/",
 )
 ALLOWED_JSON_FILE_NAMES = {
     "package-lock.json",
@@ -298,9 +277,6 @@ MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
 LINUX_HOME_PREFIX = _join(["/", "home", "/"])
 ASCII_ACCOUNT_NAME_PATTERN = r"[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_$-])?"
 PATH_COMPONENT_TERMINATOR_PATTERN = r"(?=[/\\\s`'\"),;:\]}>!?]|$)"
-GITHUB_MESHRIX_REMOTE = _join(["https://", "github", ".com/LicoLand/Meshrix.git"])
-GITHUB_MESHRIX_SERVICES_REMOTE = _join(["https://", "github", ".com/LicoLand/Meshrix-Services.git"])
-GITHUB_MESHRIX_PLUGINS_REMOTE = _join(["https://", "github", ".com/LicoLand/Meshrix-Plugins.git"])
 GITHUB_LICOUP_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoUp.git"])
 GITHUB_BADTOWER_REMOTE = _join(["https://", "github", ".com/LicoLand/BadTower.git"])
 GITHUB_FABRIGENT_REMOTE = _join(["https://", "github", ".com/LicoLand/Fabrigent.git"])
@@ -316,13 +292,9 @@ GITHUB_SITE_REMOTES = {
         "licomesh.com",
         "licoup.com",
         "licoup.net",
-        "meshrix.io",
     )
 }
 AUDITED_GITHUB_REMOTES = {
-    "Meshrix": GITHUB_MESHRIX_REMOTE,
-    "Meshrix-Services": GITHUB_MESHRIX_SERVICES_REMOTE,
-    "Meshrix-Plugins": GITHUB_MESHRIX_PLUGINS_REMOTE,
     "LicoUp": GITHUB_LICOUP_REMOTE,
     "BadTower": GITHUB_BADTOWER_REMOTE,
     "Fabrigent": GITHUB_FABRIGENT_REMOTE,
@@ -349,7 +321,6 @@ ALLOWED_DOMAIN_SUFFIXES = (
     "licomesh.com",
     "licoup.com",
     "licoup.net",
-    "meshrix.io",
 )
 CODE_LIKE_HOST_FINAL_LABELS = {
     "argv",
@@ -374,7 +345,6 @@ CODE_LIKE_HOST_FINAL_LABELS = {
     "mjs",
     "origin",
     "payload",
-    "meshrix",
     "platform",
     "replace",
     "server",
@@ -605,8 +575,6 @@ class ProjectPolicy:
     description: str
     allowed_json_file_names: frozenset[str]
     allowed_json_path_patterns: tuple[str, ...]
-    strict_json_config_prefixes: tuple[str, ...] = ()
-    json_template_prefixes: tuple[str, ...] = ()
     shape_marker_keys: frozenset[str] = frozenset(CONFIG_SHAPE_MARKER_KEYS)
 
 
@@ -641,29 +609,6 @@ RELEASE_PLAN_KEYS = frozenset(
         "releases",
         "components",
     }
-)
-MESHRIX_JSON_PATH_PATTERNS = (
-    r"apps/console/appearance-presets/[^/]+\.json",
-    r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
-    r"docs/plans/.+\.json",
-    r"docs/reports/[^/]+\.json",
-    r"packages/[^/]+/manifest\.module\.json",
-    r"packages/.+/module\.json",
-    r"packages/agents/src/.+\.lifecycle\.json",
-    r"packages/agents/src/agent-configs/.+\.json",
-    r"packages/contracts/(?!client/).+\.schema\.json",
-    r"packages/contracts/src/fixtures/.+\.json",
-    r"packages/foundation/src/version-control/version-registry(?:\.schema)?\.json",
-    r"packages/foundation/src/workflow/state-machine/definitions/.+\.json",
-    r"packages/servicehub/src/registration/external-service\.example\.json",
-    r"tests/objective-test-cases\.json",
-    r"demo/[^/]+\.json",
-    r"plugins/[^/]+\.schema\.json",
-    r"plugins/.+/(?:adapter|plugin|configuration\.schema)\.json",
-    r"plugins/.+/(?:capability|external-services|state-machines)/.+\.json",
-    r"registry/[^/]+\.json",
-    r"schemas/[^/]+\.json",
-    r"tools/release/[^/]+\.lock\.json",
 )
 SKILL_TEMPLATE_JSON_PATH_PATTERNS = (
     r"config/[a-z0-9][a-z0-9-]*\.json",
@@ -785,14 +730,6 @@ PROJECT_POLICIES = {
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS,
     ),
-    "meshrix": ProjectPolicy(
-        policy_id="meshrix",
-        description="Meshrix platform, service, and plugin repository policy.",
-        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
-        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + MESHRIX_JSON_PATH_PATTERNS,
-        strict_json_config_prefixes=STRICT_JSON_CONFIG_PREFIXES,
-        json_template_prefixes=JSON_TEMPLATE_PREFIXES,
-    ),
     "licoup": ProjectPolicy(
         policy_id="licoup",
         description="LicoUp client repository policy.",
@@ -832,9 +769,6 @@ REPOSITORY_POLICY_ALIASES = {
     "Fabrigent": "fabrigent",
     "LicoArc-Plugins": "common",
     "LicoUp": "licoup",
-    "Meshrix": "meshrix",
-    "Meshrix-Plugins": "meshrix",
-    "Meshrix-Services": "meshrix",
     "lico-auditor": "common",
     "lico-dev": "skills",
     "Lico-Dev": "skills",
@@ -844,7 +778,6 @@ REPOSITORY_POLICY_ALIASES = {
     "licomesh.com": "website",
     "licoup.com": "website",
     "licoup.net": "website",
-    "meshrix.io": "website",
 }
 
 
@@ -902,12 +835,6 @@ def file_policy_fingerprint(relative_path: str, rule_id: str, raw: bytes = b"") 
     return hashlib.sha256(payload).hexdigest()[:16]
 
 
-def is_strict_json_config_path(relative_path: str, policy: ProjectPolicy | None = None) -> bool:
-    normalized = normalized_repo_path(relative_path)
-    selected = policy or PROJECT_POLICIES["common"]
-    return normalized.startswith(selected.strict_json_config_prefixes)
-
-
 def is_allowed_json_config_path(relative_path: str, policy: ProjectPolicy | None = None) -> bool:
     selected = policy or PROJECT_POLICIES["common"]
     normalized = normalized_repo_path(relative_path)
@@ -916,10 +843,6 @@ def is_allowed_json_config_path(relative_path: str, policy: ProjectPolicy | None
         return True
     if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
         return True
-    if is_strict_json_config_path(normalized, selected):
-        return True
-    if normalized.startswith(selected.json_template_prefixes):
-        return name.endswith((".json", ".template.json", ".config.json"))
     return False
 
 
@@ -1242,10 +1165,6 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
         return {"$schema", "type"} <= keys and "properties" in keys
     if normalized.startswith("tools/registry/"):
         return bool(keys & selected.shape_marker_keys)
-    if is_strict_json_config_path(normalized, selected):
-        return bool(keys & selected.shape_marker_keys)
-    if normalized.startswith(selected.json_template_prefixes):
-        return bool(keys & selected.shape_marker_keys)
     if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
         return bool(keys & selected.shape_marker_keys)
     return False
@@ -1259,16 +1178,6 @@ def file_policy_violations(relative_path: str, raw: bytes, profile: str | None =
 
     def add(rule_id: str, message: str, evidence_class: str) -> None:
         findings.append((rule_id, message, evidence_class, file_policy_fingerprint(normalized, rule_id, raw)))
-
-    if is_strict_json_config_path(normalized, policy) and suffix != ".json":
-        if normalized in {item.lower() for item in ALLOWED_NON_JSON_CONFIG_PATHS}:
-            return findings
-        add(
-            "config-directory-non-json-file",
-            f"{policy.policy_id} fixed configuration directories may contain only schema-checked JSON files.",
-            "data-file-policy",
-        )
-        return findings
 
     if suffix in BINARY_DATA_FILE_EXTENSIONS:
         add(
@@ -1592,8 +1501,7 @@ def is_public_placeholder_value(candidate: str) -> bool:
     if any(word in lowered for word in placeholder_words):
         return True
     return (
-        "meshrix" in lowered
-        or "licoup" in lowered
+        "licoup" in lowered
         or "badtower" in lowered
         or "fabrigent" in lowered
         or "lico-auditor" in lowered
@@ -1891,7 +1799,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed Meshrix domain.",
+        "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed LicoLand domain.",
         re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b"),
         "network-location",
         is_non_loopback_ipv4,
@@ -1899,7 +1807,7 @@ RULES = [
     Rule(
         "ip-literal",
         "high-risk",
-        "IP literals are not allowed in public source; use localhost for local loopback or an allowed Meshrix domain.",
+        "IP literals are not allowed in public source; use localhost for local loopback or an allowed LicoLand domain.",
         re.compile(r"(?<![A-Za-z0-9_.-])(?:\[[0-9a-f:.]+\]|(?:[0-9a-f]{0,4}:){2,}[0-9a-f:.]{0,39})(?![A-Za-z0-9_.-])", re.IGNORECASE),
         "network-location",
         is_non_loopback_ipv6,
@@ -2005,9 +1913,6 @@ def should_scan_file(path: Path, profile: str | None = None) -> bool:
         return False
     if path.name in IGNORED_FILE_NAMES:
         return False
-    policy = policy_for_profile(profile)
-    if is_strict_json_config_path(path.as_posix(), policy):
-        return True
     if path.suffix.lower() in DATA_FILE_EXTENSIONS:
         return True
     if path.name == "Dockerfile" or ".env" in path.name:

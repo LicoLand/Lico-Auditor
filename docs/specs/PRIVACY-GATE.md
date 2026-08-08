@@ -1,12 +1,11 @@
 # Lico-Auditor Privacy Gate
 
-`lico-auditor` is the external audit gate for governed Meshrix, LicoUp,
-BadTower, and Fabrigent repositories. The audit repository is governed by a
+`lico-auditor` is the external audit gate for governed LicoUp, BadTower, and
+Fabrigent repositories. The audit repository is governed by a
 single `only` branch. All
 Actions must run the latest `only` HEAD and fail if any other audit branch is
 reachable.
-The current governed targets cover Meshrix core, services, and plugins;
-LicoUp; BadTower; Fabrigent; the retained independent `LicoArc-Plugins`
+The current governed targets cover LicoUp; BadTower; Fabrigent; the retained independent `LicoArc-Plugins`
 marketplace; developer and organization governance; and official website
 repositories.
 
@@ -18,9 +17,6 @@ The gate is layered:
   hard blockers: unapproved data files, user-record shaped JSON, secrets,
   endpoint/IP/domain rules, local paths, operational metadata, and GitHub
   surface checks.
-- `meshrix` applies to Meshrix, Meshrix-Services, and Meshrix-Plugins. It
-  admits the platform's known configuration, registry, service-contract, and
-  plugin-manifest JSON paths, then validates their configuration shape.
 - `licoup` applies to the client repository `LicoLand/LicoUp`. It admits
   client contracts, desktop assets, native resource manifests, and reviewed
   client tooling JSON; arbitrary export-like data files remain denied.
@@ -29,9 +25,9 @@ The gate is layered:
   protocol and federation policy authority remain outside this profile.
 - `fabrigent` applies to `LicoLand/Fabrigent`. It admits public protocol
   schemas, policy definitions, registries, and generated projections.
-- `website` applies to official public website repositories. It does not inherit Meshrix
-  configuration paths; arbitrary JSON content/data files are denied unless a
-  future website-specific schema is added here.
+- `website` applies to official public website repositories. Arbitrary JSON
+  content/data files are denied unless a future website-specific schema is
+  added here.
 - `skills` applies to `LicoLand/Lico-Dev`. It admits canonical
   `config/<canonical-name>.json` repository-policy objects under a strict
   field-and-type schema, canonical skill/workflow manifests, template JSON at
@@ -57,7 +53,7 @@ history, or GitHub surfaces expose:
   record-shaped payloads;
 - any non-loopback IP literal;
 - host/domain endpoints outside localhost and the official `lico.land`,
-  `licoland.com`, `meshrix.io`, `licomesh.com`, `licoup.com`, `licoup.net`,
+  `licoland.com`, `licomesh.com`, `licoup.com`, `licoup.net`,
   and `licoarc.com` namespaces;
 - production backend/admin endpoint or provider metadata;
 - customer, tenant, contract, revenue, commercial account, and other
@@ -97,7 +93,7 @@ continues to inspect complete reachable history without a legacy baseline.
 
 ## Documentation Governance
 
-The `meshrix`, `licoup`, `badtower`, and `fabrigent` profiles also validate
+The `licoup`, `badtower`, and `fabrigent` profiles also validate
 the current tracked documentation publication candidate. The check covers the required public
 layout, bilingual README mapping, formal-document categories and index,
 relative links, module READMEs, generated-projection metadata, local-only
@@ -109,4 +105,4 @@ provenance remain the responsibility of the target repository's code, schemas,
 registries, and verifiers.
 
 See
-[Meshrix, LicoUp, BadTower, and Fabrigent Documentation Governance Gate](DOCUMENTATION-GOVERNANCE.md).
+[LicoUp, BadTower, and Fabrigent Documentation Governance Gate](DOCUMENTATION-GOVERNANCE.md).

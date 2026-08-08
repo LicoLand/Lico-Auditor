@@ -220,7 +220,7 @@ class PrivacyGateTests(unittest.TestCase):
     def test_allowed_domains_pass(self) -> None:
         findings = scan_text(
             "fixture.txt",
-            "url=https://licomesh.com product=https://meshrix.io network=https://licoup.net "
+            "url=https://licomesh.com network=https://licoup.net "
             "authority=https://licoarc.com org=https://licoland.com endpoint=http://localhost:3000",
         )
         self.assertEqual(findings, [])
@@ -251,9 +251,9 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
     def test_public_reference_domains_pass_only_in_reference_contexts(self) -> None:
-        self.assertEqual(scan_text("README.md", "https://github.com/LicoLand/Meshrix"), [])
+        self.assertEqual(scan_text("README.md", "https://github.com/LicoLand/LicoUp"), [])
         self.assertEqual(scan_text("index.html", "https://www.npmjs.com/package/pactium"), [])
-        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://github.com/LicoLand/Meshrix"), [])
+        self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://github.com/LicoLand/LicoUp"), [])
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://csrc.nist.gov/pubs/example"), [])
         self.assertEqual(scan_text("skills/lico-dev/references/public.md", "https://www.rfc-editor.org/rfc/example"), [])
         self.assertEqual(
@@ -263,7 +263,7 @@ class PrivacyGateTests(unittest.TestCase):
             ),
             [],
         )
-        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/Meshrix")
+        findings = scan_text("deployment/production/settings.env", "url=https://github.com/LicoLand/LicoUp")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
@@ -314,7 +314,7 @@ class PrivacyGateTests(unittest.TestCase):
         )
 
     def test_production_metadata_placeholders_pass(self) -> None:
-        current_text = "cluster_name=example-cluster region=${REGION} service_name=meshrix"
+        current_text = "cluster_name=example-cluster region=${REGION} service_name=fabrigent"
         ecosystem_text = "service_name=lico-auditor"
         self.assertEqual(scan_text("tools/server-scripts/deploy.sh", current_text), [])
         self.assertEqual(scan_text("tools/server-scripts/deploy.sh", ecosystem_text), [])
@@ -496,11 +496,11 @@ class PrivacyGateTests(unittest.TestCase):
             self.assertEqual(scan_worktree(root), [])
 
     def test_report_target_does_not_emit_absolute_path(self) -> None:
-        local_path = macos_home_path("example/meshrix")
+        local_path = macos_home_path("example/fabrigent")
         report = AuditReport(AuditTarget(repo_root=Path(local_path), ref="HEAD"))
         rendered = report.to_dict()
         self.assertEqual(rendered["target"]["project"], "lico")
-        self.assertEqual(rendered["target"]["repo"], "meshrix")
+        self.assertEqual(rendered["target"]["repo"], "fabrigent")
         self.assertNotIn(local_path, str(rendered))
 
     def test_unknown_json_data_file_fails(self) -> None:
@@ -536,7 +536,6 @@ class PrivacyGateTests(unittest.TestCase):
         }
         for profile in (
             "common",
-            "meshrix",
             "licoup",
             "badtower",
             "fabrigent",
@@ -622,7 +621,6 @@ class PrivacyGateTests(unittest.TestCase):
         }
         for profile in (
             "common",
-            "meshrix",
             "licoup",
             "badtower",
             "fabrigent",
@@ -656,38 +654,6 @@ class PrivacyGateTests(unittest.TestCase):
             (root / "exports/app.sqlite").write_bytes(b"SQLite format 3\0")
             findings = scan_worktree(root)
         self.assertEqual([item.rule for item in findings], ["database-or-binary-data-file", "data-file-not-allowed"])
-
-    def test_strict_config_directory_rejects_non_json_files(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            config_dir = root / "packages/foundation/config"
-            config_dir.mkdir(parents=True)
-            (config_dir / "notes.md").write_text("not a config object", encoding="utf-8")
-            findings = scan_worktree(root, profile="meshrix")
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0].rule, "config-directory-non-json-file")
-
-    def test_meshrix_profile_allows_approved_config_support_files(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            config_dir = root / "packages/foundation/config/entity-config"
-            registry_dir = root / "tools/registry"
-            config_dir.mkdir(parents=True)
-            registry_dir.mkdir(parents=True)
-            (config_dir / "README.md").write_text("configuration docs", encoding="utf-8")
-            (registry_dir / "index.mjs").write_text("export {};\n", encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
-
-    def test_allowlisted_json_config_shape_passes(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            config_dir = root / "packages/foundation/config/entity-config/tools"
-            module_dir = root / "modules/default"
-            config_dir.mkdir(parents=True)
-            module_dir.mkdir(parents=True)
-            (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
-            (module_dir / "module.json").write_text('{"module_id":"default","module_type":"default"}', encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
     def test_common_profile_allows_github_workflow_template_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -736,77 +702,6 @@ class PrivacyGateTests(unittest.TestCase):
             {item.rule for item in findings},
             {"json-config-shape-invalid", "json-data-file-not-allowlisted"},
         )
-
-    def test_meshrix_profile_allows_fixed_json_shapes(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            (root / "apps/console/appearance-presets").mkdir(parents=True)
-            (root / "packages/foundation/src/workflow/state-machine/definitions").mkdir(parents=True)
-            (root / "apps/console/appearance-presets/default-system.json").write_text(
-                '{"schemaVersion":"1","id":"default","label":"Default","lightPresetId":"light","darkPresetId":"dark"}',
-                encoding="utf-8",
-            )
-            (root / "packages/foundation/src/workflow/state-machine/definitions/example.json").write_text(
-                '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
-                encoding="utf-8",
-            )
-            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
-
-    def test_meshrix_profile_allows_governed_json_registries(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            definitions = root / "packages/foundation/src/workflow/state-machine/definitions/acceptance"
-            checkpoints = root / "tools/registry/capability-acceptance-checkpoints"
-            release = root / "tools/release"
-            plugins = root / "plugins"
-            fixtures = root / "packages/contracts/src/fixtures"
-            lifecycle = root / "packages/agents/src/workspace-contribution"
-            config = root / "packages/foundation/config/runtime"
-            for directory in (definitions, checkpoints, release, plugins, fixtures, lifecycle, config):
-                directory.mkdir(parents=True)
-            (definitions / "example.json").write_text(
-                '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
-                encoding="utf-8",
-            )
-            (checkpoints / "example.json").write_text(
-                '[{"id":"example","status":"completed","goal":"example"}]',
-                encoding="utf-8",
-            )
-            (release / "node-runtime.lock.json").write_text(
-                '{"schemaVersion":"1","version":"22.0.0","targets":[]}',
-                encoding="utf-8",
-            )
-            (plugins / "plugin.schema.json").write_text(
-                '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{}}',
-                encoding="utf-8",
-            )
-            (fixtures / "wire-corpus.json").write_text(
-                '{"valid":[{"kind":"example"}],"invalidInvalidations":[]}',
-                encoding="utf-8",
-            )
-            (lifecycle / "example.lifecycle.json").write_text(
-                '{"machineId":"example","initialState":"draft","states":{},"events":[]}',
-                encoding="utf-8",
-            )
-            (config / "default-settings.json").write_text("{}", encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
-
-    def test_meshrix_profile_allows_local_only_plan_and_report_json(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            plans = root / "docs/plans/staged/example"
-            reports = root / "docs/reports"
-            plans.mkdir(parents=True)
-            reports.mkdir(parents=True)
-            (plans / "Checkpoints.json").write_text(
-                '[{"id":"example","status":"completed","goal":"example"}]',
-                encoding="utf-8",
-            )
-            (reports / "plan-baseline-migration.json").write_text(
-                '{"schema_version":"1","status":"recorded"}',
-                encoding="utf-8",
-            )
-            self.assertEqual(scan_worktree(root, profile="meshrix"), [])
 
     def test_governed_versioned_names_are_not_reported_as_secrets(self) -> None:
         versioned_name = "-".join(["governed", "report", "1"])
@@ -865,9 +760,6 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(scan_text("packages/protocols/mcp/adapter/lib/cli/interactive.mjs", text), [])
 
     def test_auto_profile_recognizes_renamed_repo_directories(self) -> None:
-        self.assertEqual(resolve_scan_profile(Path("Meshrix")), "meshrix")
-        self.assertEqual(resolve_scan_profile(Path("Meshrix-Services")), "meshrix")
-        self.assertEqual(resolve_scan_profile(Path("Meshrix-Plugins")), "meshrix")
         self.assertEqual(resolve_scan_profile(Path("LicoUp")), "licoup")
         self.assertEqual(resolve_scan_profile(Path("BadTower")), "badtower")
         self.assertEqual(resolve_scan_profile(Path("Fabrigent")), "fabrigent")
@@ -881,7 +773,6 @@ class PrivacyGateTests(unittest.TestCase):
             repository_root / ".github/workflows/lico-auditor-privacy-gate.yml"
         ).read_text(encoding="utf-8")
         expected = {
-            "meshrix": ("Meshrix", "meshrix"),
             "licoup": ("LicoUp", "licoup"),
             "badtower": ("BadTower", "badtower"),
             "fabrigent": ("Fabrigent", "fabrigent"),
@@ -939,7 +830,7 @@ class PrivacyGateTests(unittest.TestCase):
         findings = scan_text(source_path, f"client_secret={opaque_secret_value()}")
         self.assertEqual([item.rule for item in findings], ["secret-assignment"])
 
-    def test_badtower_profile_does_not_inherit_meshrix_json_paths(self) -> None:
+    def test_badtower_profile_rejects_unowned_platform_json_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             target = root / "packages/foundation/src/workflow/state-machine/definitions/example.json"
@@ -980,7 +871,7 @@ class PrivacyGateTests(unittest.TestCase):
     def test_website_profile_does_not_inherit_platform_config_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            config_dir = root / "packages/foundation/config"
+            config_dir = root / "schemas"
             config_dir.mkdir(parents=True)
             (config_dir / "manifest.json").write_text('{"schemaVersion":"1","kind":"manifest"}', encoding="utf-8")
             findings = scan_worktree(root, profile="website")
@@ -1275,13 +1166,13 @@ class PrivacyGateTests(unittest.TestCase):
     def test_allowlisted_config_rejects_user_record_shape(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            config_dir = root / "packages/foundation/config"
+            config_dir = root / "schemas"
             config_dir.mkdir(parents=True)
             (config_dir / "default-users.json").write_text(
                 '{"schemaVersion":"1","users":[{"name":"Alice","email":"alice@example.test"}]}',
                 encoding="utf-8",
             )
-            findings = scan_worktree(root, profile="meshrix")
+            findings = scan_worktree(root, profile="fabrigent")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "user-record-data-shape")
 
