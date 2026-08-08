@@ -1,13 +1,13 @@
 # Lico-Auditor
 
-External privacy and release audit gate for governed Meshrix, LicoUp,
-BadTower, and Fabrigent repositories.
+External privacy and release audit gate for governed LicoUp, BadTower, and
+Fabrigent repositories.
 
 The framework is intentionally outside the target repository. It checks the
 target checkout as data, reports only redacted evidence, and fails when privacy
 or local-info leakage is reachable from public branches.
-It governs the Meshrix core, services, and plugins repositories; LicoUp;
-BadTower; Fabrigent; the retained independent `LicoArc-Plugins` marketplace;
+It governs LicoUp; BadTower; Fabrigent; the retained independent
+`LicoArc-Plugins` marketplace;
 organization governance; developer intent; and the official public website
 repositories.
 
@@ -18,11 +18,10 @@ branch, and run the gate from the latest `only` HEAD before any target scan.
 ## Commands
 
 ```sh
-bin/lico-auditor gate --repo ../Meshrix --profile meshrix --history
 bin/lico-auditor gate --repo ../LicoUp --profile licoup --history
 bin/lico-auditor gate --repo ../BadTower --profile badtower --history
 bin/lico-auditor gate --repo ../Fabrigent --profile fabrigent --history
-bin/lico-auditor report --repo ../Meshrix --profile meshrix --history --format json
+bin/lico-auditor report --repo ../LicoUp --profile licoup --history --format json
 bin/lico-auditor github-surface --all-targets
 bin/lico-auditor source-of-truth --repo . --require-current-head --enforce-remote-heads
 ```
@@ -66,8 +65,6 @@ local paths, operational endpoints, and GitHub surface checks.
 
 Repository-specific profiles only define what engineering files are allowed:
 
-- `meshrix` for Meshrix, Meshrix-Services, and Meshrix-Plugins: admits fixed
-  platform configuration, registries, service contracts, and plugin manifests.
 - `licoup` for `LicoLand/LicoUp`: admits client contracts, desktop assets,
   native resource manifests, and reviewed client tooling JSON.
 - `badtower` for `LicoLand/BadTower`: admits only node-owned configuration,
@@ -104,7 +101,7 @@ names to the correct profile.
   allowlisted paths;
 - any committed IP literal except local loopback;
 - host/domain endpoints outside localhost and the official `lico.land`,
-  `licoland.com`, `meshrix.io`, `licomesh.com`, `licoup.com`, `licoup.net`,
+  `licoland.com`, `licomesh.com`, `licoup.com`, `licoup.net`,
   and `licoarc.com` namespaces;
 - production backend/admin endpoint/provider metadata;
 - customer, tenant, contract, revenue, commercial account, and other
@@ -122,8 +119,8 @@ names to the correct profile.
 - local branches whose names use the `codex` prefix instead of a meaningful
   prefix such as `feature` or `fix`, with the same restriction enforced on
   GitHub branches by the importable ruleset;
-- tracked documentation governance for the `meshrix`, `licoup`, `badtower`,
-  and `fabrigent` profiles:
+- tracked documentation governance for the `licoup`, `badtower`, and
+  `fabrigent` profiles:
   required public entry points, approved formal-document categories, bilingual
   README mapping, index and link integrity, module READMEs, generated-source
   metadata, and local-only asset boundaries;
@@ -134,7 +131,7 @@ for release gates.
 See [PRIVACY-GATE.md](docs/specs/PRIVACY-GATE.md).
 See
 [DOCUMENTATION-GOVERNANCE.md](docs/specs/DOCUMENTATION-GOVERNANCE.md)
-for the four current product profiles' documentation audit contract.
+for the three current product profiles' documentation audit contract.
 
 ## Version governance
 

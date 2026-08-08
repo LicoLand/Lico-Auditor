@@ -7,11 +7,11 @@ from pathlib import Path
 
 from .contribution_rules import scan_git_contribution_governance
 from .models import AuditReport, AuditTarget, Finding
-from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_MESHRIX_REMOTE
+from .privacy_rules import AUDITED_GITHUB_REMOTES, GITHUB_LICOUP_REMOTE
 from .report import emit_findings, emit_report
 from .scanner import remote_pull_refs, scan_history, scan_worktree
 
-DEFAULT_REMOTE = GITHUB_MESHRIX_REMOTE
+DEFAULT_REMOTE = GITHUB_LICOUP_REMOTE
 ONLY_BRANCH = "only"
 
 
@@ -246,7 +246,7 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run external privacy audit gates for governed Meshrix, LicoUp, BadTower, and Fabrigent repositories."
+        description="Run external privacy audit gates for governed LicoUp, BadTower, and Fabrigent repositories."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -262,9 +262,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     gate.add_argument(
         "--profile",
-        choices=("auto", "common", "meshrix", "licoup", "badtower", "fabrigent", "website", "skills"),
+        choices=("auto", "common", "licoup", "badtower", "fabrigent", "website", "skills"),
         default="auto",
-        help="Policy profile: auto, common, meshrix, licoup, badtower, fabrigent, website, or skills.",
+        help="Policy profile: auto, common, licoup, badtower, fabrigent, website, or skills.",
     )
     gate.add_argument("--format", choices=("text", "json"), default="text")
     gate.set_defaults(func=command_gate)
@@ -277,9 +277,9 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--max-commits", type=int, default=0)
     report.add_argument(
         "--profile",
-        choices=("auto", "common", "meshrix", "licoup", "badtower", "fabrigent", "website", "skills"),
+        choices=("auto", "common", "licoup", "badtower", "fabrigent", "website", "skills"),
         default="auto",
-        help="Policy profile: auto, common, meshrix, licoup, badtower, fabrigent, website, or skills.",
+        help="Policy profile: auto, common, licoup, badtower, fabrigent, website, or skills.",
     )
     report.add_argument("--format", choices=("json", "text"), default="json")
     report.set_defaults(func=command_report)

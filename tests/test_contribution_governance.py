@@ -198,7 +198,7 @@ class ContributionGovernanceTests(unittest.TestCase):
         self.assertEqual(ruleset["enforcement"], "active")
         self.assertEqual(ruleset["conditions"]["ref_name"]["include"], ["~ALL"])
         governed = set(ruleset["conditions"]["repository_name"]["include"])
-        self.assertTrue({"Meshrix", "LicoUp", "BadTower", "Fabrigent"} <= governed)
+        self.assertTrue({"LicoUp", "BadTower", "Fabrigent"} <= governed)
         for rule in rules.values():
             self.assertTrue(rule["negate"])
             self.assertEqual(rule["operator"], "regex")

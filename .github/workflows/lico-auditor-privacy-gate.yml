@@ -19,21 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - repository: LicoLand/Meshrix
-            branch: nightly
-            profile: meshrix
-          - repository: LicoLand/Meshrix
-            branch: stable
-            profile: meshrix
-          - repository: LicoLand/Meshrix
-            branch: release
-            profile: meshrix
-          - repository: LicoLand/Meshrix-Services
-            branch: main
-            profile: meshrix
-          - repository: LicoLand/Meshrix-Plugins
-            branch: main
-            profile: meshrix
           - repository: LicoLand/LicoUp
             branch: nightly
             profile: licoup
@@ -50,9 +35,6 @@ jobs:
             branch: main
             profile: website
           - repository: LicoLand/licoland.com
-            branch: main
-            profile: website
-          - repository: LicoLand/meshrix.io
             branch: main
             profile: website
           - repository: LicoLand/licomesh.com
