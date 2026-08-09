@@ -27,8 +27,11 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
                 {
                     ".vscode/settings.json": '{"cmake.ignoreCMakeListsMissing":true}',
                     "apps/desktop/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json": '{"images":[],"info":{"version":1}}',
+                    "apps/desktop/assets/update/licoup-update-public-keys.json": '{"keys":{}}',
                     "apps/desktop/macos/Runner/Assets.xcassets/AppIcon.appiconset/SourceManifest.json": '{"icons":[],"schemaVersion":"1","source":"synthetic"}',
                     "crates/licoup-native/src/domain/targets/model_catalog/builtin_catalog.json": '{"agents":[],"description":"synthetic","schemaVersion":"1"}',
+                    "crates/licoup-native/src/domain/agent_intelligence_catalog/example.json": '{"schema_version":2,"catalog_version":"synthetic","as_of":"2026-01-01","source_url":"https://artificialanalysis.ai"}',
+                    "crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot.json": '{"schema_version":1,"snapshot_date":"2026-01-01","providers":[]}',
                     "docs/plans/Manifest.json": '[{"id":"synthetic-plan"}]',
                     "docs/plans/client-release/Checkpoints.json": '[{"checkpoint":"synthetic"}]',
                     "plugins/lico-up-codex/mcp/server.json": '{"mcpServers":{}}',
@@ -112,6 +115,30 @@ class LicoupDomainPolicyTests(unittest.TestCase):
             [],
         )
 
+    def test_client_vendor_sources_and_public_api_origins_are_allowed(self) -> None:
+        lines = (
+            'source = "https://artificialanalysis.ai/methodology"',
+            'baseUrl = "https://api.deepseek.com/v1"',
+            'baseUrl = "https://api.moonshot.cn/v1"',
+            'download = "https://downloads.cursor.com/client.tar.gz"',
+        )
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertEqual(
+                    scan_text("crates/licoup-native/src/domain/provider_reference.rs", line),
+                    [],
+                )
+
+    def test_dotted_code_status_and_conversion_calls_are_not_hosts(self) -> None:
+        self.assertEqual(
+            scan_text("crates/licoup-native/src/example.rs", "host = host.to_string();"),
+            [],
+        )
+        self.assertEqual(
+            scan_text("crates/licoup-native/src/example.rs", "status = snapshot.status();"),
+            [],
+        )
+
     def test_docker_internal_names_are_local_development_hosts(self) -> None:
         line = "return `http://host.docker.internal:${this.port}`;"
         self.assertEqual(
@@ -170,6 +197,22 @@ class LicoupSecretPredicateTests(unittest.TestCase):
         findings = scan_text("crates/licoup-native/src/config.rs", f'secret = "{secret}"')
         self.assertEqual(rules(findings), ["secret-assignment"])
 
+    def test_code_expression_named_lead_is_not_business_data(self) -> None:
+        self.assertEqual(
+            scan_text("crates/licoup-native/src/platform/pty_transport.rs", "lead = buffer[index];"),
+            [],
+        )
+
+    def test_versioned_credential_handle_is_not_secret_material(self) -> None:
+        handle = "api-" + "key:gateway-credentials-v1:credential-" + "11111111-1111-4111-8111-111111111111"
+        self.assertEqual(
+            scan_text(
+                "crates/licoup-native/src/platform/llm_api_key_vault.rs",
+                f'account = "{handle}"',
+            ),
+            [],
+        )
+
 
 class LicoupDocumentationGovernanceTests(unittest.TestCase):
     def test_localized_formal_sibling_is_a_valid_formal_path(self) -> None:
@@ -212,6 +255,8 @@ class LicoupDocumentationGovernanceTests(unittest.TestCase):
                     "docs/COMPATIBILITY.md": "# Compatibility\n",
                     "docs/COMPATIBILITY.zh-CN.md": "# 兼容性\n",
                     "docs/ENTITY-CONFIG-LAYOUT.md": "# Entity Config Layout\n",
+                    "docs/STATUS.md": "# Status\n",
+                    "docs/STATUS.zh-CN.md": "# 状态\n",
                     "docs/architecture/OVERVIEW.md": "# Architecture\n",
                     "docs/functionality/OVERVIEW.md": "# Functionality\n",
                     "docs/protocols/OVERVIEW.md": "# Protocols\n",

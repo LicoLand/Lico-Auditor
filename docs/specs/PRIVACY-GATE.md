@@ -18,8 +18,10 @@ The gate is layered:
   endpoint/IP/domain rules, local paths, operational metadata, and GitHub
   surface checks.
 - `licoup` applies to the client repository `LicoLand/LicoUp`. It admits
-  client contracts, desktop assets, native resource manifests, and reviewed
-  client tooling JSON; arbitrary export-like data files remain denied.
+  client contracts, desktop assets, update public-key metadata, native
+  resource and model-reference catalogs, reviewed client tooling JSON, and
+  official public vendor documentation, distribution, and API origins.
+  Arbitrary export-like data files and unrecognized endpoints remain denied.
 - `badtower` applies to `LicoLand/BadTower`. It admits node-owned
   configuration, implementation schemas, registries, and synthetic examples;
   protocol and federation policy authority remain outside this profile.
