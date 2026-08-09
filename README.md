@@ -66,7 +66,8 @@ local paths, operational endpoints, and GitHub surface checks.
 Repository-specific profiles only define what engineering files are allowed:
 
 - `licoup` for `LicoLand/LicoUp`: admits client contracts, desktop assets,
-  native resource manifests, and reviewed client tooling JSON.
+  update public-key metadata, native resource and model-reference catalogs,
+  reviewed client tooling JSON, and official public vendor references.
 - `badtower` for `LicoLand/BadTower`: admits only node-owned configuration,
   implementation schemas, registries, and synthetic documentation examples.
   It does not establish protocol or federation policy authority.

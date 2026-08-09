@@ -77,6 +77,10 @@ scenario, or generated directories. Executable public JSON examples belong
 under `docs/examples/` and remain subject to the existing configuration-shape
 and privacy checks.
 
+LicoUp's normative current-status document and its Simplified Chinese sibling
+are formal root documents under `docs/`. They remain indexed from the public
+documentation entry point and are governed like the other formal root files.
+
 ## Finding rules
 
 The documentation gate emits fixed, redacted findings:

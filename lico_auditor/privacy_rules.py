@@ -353,11 +353,13 @@ CODE_LIKE_HOST_FINAL_LABELS = {
     "sh",
     "split",
     "statustext",
+    "status",
     "stderr",
     "stdout",
     "svg",
     "toml",
     "tostring",
+    "to",
     "trim",
     "ts",
     "txt",
@@ -469,13 +471,24 @@ PUBLIC_SOURCE_REFERENCE_HOSTS = {
     # Official vendor, distribution, and documentation domains referenced from
     # client source, tooling, and catalog attribution metadata.
     "ai.google.dev",
+    "antigravity.google",
+    "api-docs.deepseek.com",
+    "api.deepseek.com",
+    "api.kilo.ai",
+    "api.moonshot.cn",
+    "arena.ai",
+    "artificialanalysis.ai",
     "cdn.jsdelivr.net",
     "clawhub.ai",
     "cloud-images.ubuntu.com",
     "cloud.debian.org",
     "code.claude.com",
+    "cursor.com",
+    "dart.dev",
     "dl.rockylinux.org",
     "docs.github.com",
+    "docs.anthropic.com",
+    "docs.cursor.com",
     "docs.microsoft.com",
     "docs.openclaw.ai",
     "download.opensuse.org",
@@ -483,13 +496,17 @@ PUBLIC_SOURCE_REFERENCE_HOSTS = {
     "forum.cursor.com",
     "github.com",
     "keepachangelog.com",
+    "kilo.ai",
     "nodejs.org",
     "opencode.ai",
+    "opencollective.com",
     "platform.kimi.ai",
     "pub.dev",
     "repo.almalinux.org",
     "semver.org",
     "static.rust-lang.org",
+    "downloads.cursor.com",
+    "help.openai.com",
     "wiki.gnome.org",
     "www.apple.com",
     "www.kimi.com",
@@ -686,12 +703,15 @@ LICOUP_JSON_PATH_PATTERNS = (
     r"vscode/settings\.json",
     r"apps/desktop/assets/agent-render-adapters/[^/]+\.json",
     r"apps/desktop/assets/appearance-presets/[^/]+\.json",
+    r"apps/desktop/assets/update/licoup-update-public-keys\.json",
     r"apps/desktop/ios/runner/assets\.xcassets/.+/contents\.json",
     r"apps/desktop/macos/runner/assets\.xcassets/.+/contents\.json",
     r"apps/desktop/macos/runner/assets\.xcassets/.+/sourcemanifest\.json",
     r"apps/desktop/packaging\.modules\.json",
     r"apps/desktop/test/(?:fixtures|layout)/.+\.json",
     r"crates/licoup-native/resources/[^/]+\.json",
+    r"crates/licoup-native/src/domain/agent_intelligence_catalog/[^/]+\.json",
+    r"crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot\.json",
     r"crates/licoup-native/src/domain/targets/model_catalog/[^/]+\.json",
     r"docs/plans/manifest\.json",
     r"docs/plans/.+/checkpoints\.json",
@@ -1143,6 +1163,15 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     if selected.policy_id == "licoup":
         if normalized == "vscode/settings.json":
             return bool(keys)
+        if normalized == "apps/desktop/assets/update/licoup-update-public-keys.json":
+            return keys == {"keys"} and isinstance(data.get("keys"), dict)
+        if re.fullmatch(
+            r"crates/licoup-native/src/domain/agent_intelligence_catalog/[^/]+\.json",
+            normalized,
+        ):
+            return {"schema_version", "catalog_version", "as_of", "source_url"} <= keys
+        if normalized == "crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot.json":
+            return {"schema_version", "snapshot_date", "providers"} <= keys
         if re.fullmatch(r"plugins/[^/]+/mcp/server\.json", normalized):
             return "mcpServers" in keys
     if normalized.startswith("artifacts/") or normalized.startswith("vendor/"):
@@ -1596,9 +1625,15 @@ def is_operational_endpoint_url(value: str, relative_path: str) -> bool:
     return True
 
 
-def is_sensitive_business_assignment(value: str, _relative_path: str) -> bool:
+def is_sensitive_business_assignment(value: str, relative_path: str) -> bool:
     candidate = _candidate_secret_value(value)
-    return not is_public_placeholder_value(candidate)
+    return not (
+        is_public_placeholder_value(candidate)
+        or (
+            is_source_code_path(relative_path)
+            and looks_like_code_expression_value(candidate)
+        )
+    )
 
 
 def is_production_metadata_assignment(value: str, relative_path: str) -> bool:
@@ -1705,6 +1740,13 @@ def looks_like_opaque_secret_literal(candidate: str) -> bool:
 
 
 def is_non_placeholder_secret(value: str, relative_path: str) -> bool:
+    normalized_value = value.strip().strip("\"'`.,;)}]").lower()
+    if (
+        normalized_repo_path(relative_path)
+        == "crates/licoup-native/src/platform/llm_api_key_vault.rs"
+        and re.fullmatch(r"api-key:gateway-credentials-v\d+", normalized_value)
+    ):
+        return False
     if value.lower().startswith(("credential:", "secretref:", "tokenref:")):
         return False
     if not re.search(r"[:=]", value):
