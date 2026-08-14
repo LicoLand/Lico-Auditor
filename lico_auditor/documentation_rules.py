@@ -63,6 +63,7 @@ LICOUP_FORMAL_DOCUMENTATION_FILES = frozenset(
 
 LICOUP_FORMAL_DOCUMENTATION_PREFIXES = (
     "docs/platforms/",
+    "docs/releases/",
 )
 
 

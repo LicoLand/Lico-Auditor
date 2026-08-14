@@ -328,6 +328,8 @@ class LicoupDocumentationGovernanceTests(unittest.TestCase):
                     "docs/RELEASE-PACKAGES.zh-CN.md": "# 发布包\n",
                     "docs/platforms/MACOS-DIRECT-DISTRIBUTION.md": "# macOS\n",
                     "docs/platforms/MACOS-DIRECT-DISTRIBUTION.zh-CN.md": "# macOS\n",
+                    "docs/releases/PROMOTION-GATES.md": "# Promotion gates\n",
+                    "docs/releases/PROMOTION-GATES.zh-CN.md": "# 晋升门禁\n",
                 },
             )
             subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True)
