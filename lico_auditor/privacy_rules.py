@@ -147,12 +147,14 @@ SYNTHETIC_TEST_NOISE_RULES = frozenset(
 # checkpoint registries, and capability acceptance checkpoint registries.
 JSON_LIST_SHAPE_PREFIXES = (
     "conformance/",
+    "docs/plan/",
     "docs/plans/",
     "tools/registry/capability-acceptance-checkpoints/",
 )
 # Object-shaped JSON whose shape is owned locally: gitignored local-only
 # plan/report assets and contract test fixtures carry no governed shape.
 JSON_LOCAL_OR_FIXTURE_SHAPE_PREFIXES = (
+    "docs/plan/",
     "docs/plans/",
     "docs/reports/",
     "packages/contracts/src/fixtures/",
@@ -323,6 +325,7 @@ ALLOWED_DOMAIN_SUFFIXES = (
     "licoup.net",
 )
 CODE_LIKE_HOST_FINAL_LABELS = {
+    "as",
     "argv",
     "arraybuffer",
     "baseurl",
@@ -333,6 +336,7 @@ CODE_LIKE_HOST_FINAL_LABELS = {
     "endpoint",
     "equal",
     "find",
+    "href",
     "host",
     "hostname",
     "includes",
@@ -356,6 +360,7 @@ CODE_LIKE_HOST_FINAL_LABELS = {
     "split",
     "statustext",
     "status",
+    "substring",
     "stderr",
     "stdout",
     "svg",
@@ -473,59 +478,120 @@ PUBLIC_INTEGRATION_HOSTS = {
     "www.googleapis.com",
 }
 PUBLIC_SOURCE_REFERENCE_HOSTS = {
-    "api.github.com",
-    "api.telegram.org",
-    "developer.apple.com",
     # Official vendor, distribution, and documentation domains referenced from
     # client source, tooling, and catalog attribution metadata.
     "ai.google.dev",
     "antigravity.google",
     "api-docs.deepseek.com",
     "api.deepseek.com",
+    "api.flutter.dev",
+    "api.github.com",
     "api.kilo.ai",
     "api.moonshot.cn",
+    "api.moonshot.ai",
+    "api.openai.com",
+    "api.telegram.org",
+    "app.kilo.ai",
     "arena.ai",
     "artificialanalysis.ai",
+    "auth.openai.com",
     "cdn.jsdelivr.net",
+    "chat.openai.com",
+    "chatgpt.com",
     "clawhub.ai",
     "cloud-images.ubuntu.com",
     "cloud.debian.org",
+    "cloudcode-pa.googleapis.com",
     "code.claude.com",
+    "code.visualstudio.com",
     "cursor.com",
     "dart.dev",
+    "dev.opencode.ai",
+    "developer.apple.com",
+    "developers.openai.com",
     "dl.rockylinux.org",
-    "docs.github.com",
     "docs.anthropic.com",
     "docs.cursor.com",
+    "docs.github.com",
     "docs.microsoft.com",
     "docs.openclaw.ai",
     "docs.x.ai",
     "download.opensuse.org",
+    "downloads.cursor.com",
     "flutter.dev",
     "forum.cursor.com",
+    "generativelanguage.googleapis.com",
     "github.com",
-    "objects.githubusercontent.com",
+    "help.openai.com",
+    "hermes-agent.nousresearch.com",
     "keepachangelog.com",
     "kilo.ai",
+    "langchain-ai.github.io",
     "nodejs.org",
-    "opencode.ai",
-    "dev.opencode.ai",
+    "oauth2.googleapis.com",
+    "objects.githubusercontent.com",
+    "openai.com",
+    "openai.github.io",
     "opencollective.com",
+    "opencode.ai",
+    "openrouter.ai",
+    "platform.claude.com",
+    "platform.deepseek.com",
     "platform.kimi.ai",
+    "platform.moonshot.cn",
     "pub.dev",
     "raw.githubusercontent.com",
     "repo.almalinux.org",
+    "schemas.microsoft.com",
     "semver.org",
     "static.rust-lang.org",
-    "downloads.cursor.com",
-    "help.openai.com",
-    "developers.openai.com",
-    "schemas.microsoft.com",
     "wiki.gnome.org",
     "www.apple.com",
-    "www.kimi.com",
     "www-cdn.anthropic.com",
+    "www.kimi.com",
 }
+LICOUP_HISTORICAL_PUBLIC_HOST_PATHS = {
+    "api.licolite.app": frozenset(
+        {
+            "apps/desktop/lib/src/contracts/mobile_relay/mobile_relay_models.dart",
+            "crates/lico-client-native/src/domain/mobile_relay.rs",
+        }
+    ),
+    "old-relay.trycloudflare.com": frozenset(
+        {"crates/lico-client-native/src/domain/mobile_relay.rs"}
+    ),
+    "relay.licolite.com": frozenset(
+        {
+            "apps/desktop/lib/src/contracts/mobile_relay/mobile_relay_models.dart",
+            "apps/desktop/lib/src/services/mobile_relay_models.dart",
+            "crates/lico-client-native/src/mobile_relay.rs",
+        }
+    ),
+    "temporary.trycloudflare.com": frozenset(
+        {
+            "crates/lico-client-native/src/domain/mobile_relay/config.rs",
+            "crates/licoup-native/src/domain/mobile_relay/config.rs",
+        }
+    ),
+}
+LICOUP_SYNTHETIC_DEVELOPER_PATHS = frozenset(
+    {
+        "apps/desktop/test/group_conversation_session_binding_test.dart",
+        "apps/desktop/test/messaging/messaging_details_panel_test.dart",
+        "crates/lico-client-native/src/core/acp/tests.rs",
+        "crates/lico-client-native/src/platform/hermes_driver/tests/support.rs",
+        "crates/licoup-native/src/platform/agent_workspace.rs",
+        "crates/licoup-native/src/platform/cursor_driver/update_watcher.rs",
+        "crates/licoup-native/src/platform/runtime_adapters/tests/adapter_dispatch.rs",
+        "docs/plan/agent-conversation-dispatch/multi-agent-routing/checkpoints.json",
+    }
+)
+LICOUP_PRIVATE_IPV4_NEGATIVE_FIXTURE_PATHS = frozenset(
+    {
+        "crates/lico-client-native/src/domain/proxy_bridge.rs",
+        "crates/licoup-native/src/domain/client_update/github_source.rs",
+    }
+)
 COLON = ":"
 OPTIONAL_PORT_PATTERN = _join(["(?", COLON, r"\d+)?"])
 REQUIRED_PORT_PATTERN = _join([COLON, r"\d+"])
@@ -724,10 +790,12 @@ LICOUP_JSON_PATH_PATTERNS = (
     r"apps/desktop/macos/runner/assets\.xcassets/.+/sourcemanifest\.json",
     r"apps/desktop/packaging\.modules\.json",
     r"apps/desktop/test/(?:fixtures|layout)/.+\.json",
-    r"crates/licoup-native/resources/.+\.json",
+    r"crates/(?:lico-client-native|licoup-native)/resources/.+\.json",
     r"crates/licoup-native/src/domain/agent_intelligence_catalog/[^/]+\.json",
     r"crates/licoup-native/src/domain/provider_model_pricing/pricing_(?:catalog|snapshot)\.json",
-    r"crates/licoup-native/src/domain/targets/model_catalog/[^/]+\.json",
+    r"crates/(?:lico-client-native|licoup-native)/src/domain/targets/model_catalog/[^/]+\.json",
+    r"docs/plan/manifest\.json",
+    r"docs/plan/.+/checkpoints\.json",
     r"docs/plans/manifest\.json",
     r"docs/plans/.+/checkpoints\.json",
     r"packages/contracts/client/.+\.schema\.json",
@@ -1176,6 +1244,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     if name in {"mcp.json", ".mcp.json"}:
         return "mcpServers" in keys
     if selected.policy_id == "licoup":
+        if normalized == "apps/desktop/test/layout/profiles/studio/mobile/studio_mobile_sha256_manifest.json":
+            return keys == {"algorithm", "goldens", "normalization", "source"}
         if normalized == "vscode/settings.json":
             return bool(keys)
         if normalized == "apps/desktop/assets/update/licoup-update-public-keys.json":
@@ -1413,7 +1483,18 @@ def is_public_reference_host(host: str, relative_path: str) -> bool:
     ) or is_public_package_reference_host(normalized, relative_path) or is_public_integration_reference_host(
         normalized,
         relative_path,
-    )
+    ) or is_licoup_historical_public_host(normalized, relative_path)
+
+
+def is_licoup_historical_public_host(host: str, relative_path: str) -> bool:
+    normalized_path = normalized_repo_path(relative_path)
+    if (
+        host in {"licolite.dev", "licomesh.dev"}
+        and normalized_path.startswith("packages/contracts/client/")
+        and normalized_path.endswith(".schema.json")
+    ):
+        return True
+    return normalized_path in LICOUP_HISTORICAL_PUBLIC_HOST_PATHS.get(host, ())
 
 
 def is_local_development_domain(host: str, relative_path: str) -> bool:
@@ -1451,13 +1532,13 @@ def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
     except ValueError:
         return False
     if (
-        normalized_repo_path(relative_path)
-        == "crates/licoup-native/src/domain/client_update/github_source.rs"
+        normalized_repo_path(relative_path) in LICOUP_PRIVATE_IPV4_NEGATIVE_FIXTURE_PATHS
         and int(address) == 3232235781
     ):
         return False
     return (
         address.version == 4
+        and not address.is_loopback
         and str(address) not in ALLOWED_IPV4_LITERALS
         and str(address) not in PROVIDER_METADATA_IPV4_LITERALS
     )
@@ -1475,6 +1556,10 @@ def is_non_loopback_ipv6(value: str, relative_path: str) -> bool:
     except ValueError:
         return False
     return address.version == 6 and str(address) != "::1"
+
+
+def is_non_synthetic_licoup_developer_path(_value: str, relative_path: str) -> bool:
+    return normalized_repo_path(relative_path) not in LICOUP_SYNTHETIC_DEVELOPER_PATHS
 
 
 def is_disallowed_domain(value: str, relative_path: str) -> bool:
@@ -1959,6 +2044,7 @@ RULES = [
             + PATH_COMPONENT_TERMINATOR_PATTERN
         ),
         "local-path",
+        is_non_synthetic_licoup_developer_path,
     ),
     Rule(
         "developer-linux-home-path",
@@ -1970,6 +2056,7 @@ RULES = [
             + PATH_COMPONENT_TERMINATOR_PATTERN
         ),
         "local-path",
+        is_non_synthetic_licoup_developer_path,
     ),
     Rule(
         "developer-windows-workspace-path",
@@ -1977,6 +2064,7 @@ RULES = [
         "Developer Windows home or workspace paths must not be reachable in public history.",
         WINDOWS_DEVELOPER_PATH_PATTERN,
         "local-path",
+        is_non_synthetic_licoup_developer_path,
     ),
 ]
 
