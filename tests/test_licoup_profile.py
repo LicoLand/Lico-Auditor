@@ -30,13 +30,18 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
                     "apps/desktop/assets/update/licoup-update-public-keys.json": '{"keys":{}}',
                     "crates/licoup-native/resources/client-update-public-keys.json": '{"keys":{}}',
                     "crates/licoup-native/resources/adaptive_flywheel/builtin-basic/workflow.json": '{"schema":"v1","states":[],"transitions":[]}',
+                    "crates/lico-client-native/resources/agent-conversation-drivers.json": '{"schemaVersion":"1"}',
                     "apps/desktop/macos/Runner/Assets.xcassets/AppIcon.appiconset/SourceManifest.json": '{"icons":[],"schemaVersion":"1","source":"synthetic"}',
                     "crates/licoup-native/src/domain/targets/model_catalog/builtin_catalog.json": '{"agents":[],"description":"synthetic","schemaVersion":"1"}',
+                    "crates/lico-client-native/src/domain/targets/model_catalog/builtin_catalog.json": '{"agents":[],"schemaVersion":"1"}',
                     "crates/licoup-native/src/domain/agent_intelligence_catalog/example.json": '{"schema_version":2,"catalog_version":"synthetic","as_of":"2026-01-01","source_url":"https://artificialanalysis.ai"}',
                     "crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot.json": '{"schema_version":1,"snapshot_date":"2026-01-01","providers":[]}',
                     "crates/licoup-native/src/domain/provider_model_pricing/pricing_catalog.json": '{"agents":[],"last_updated":"2026-01-01","providers":[]}',
                     "docs/plans/Manifest.json": '[{"id":"synthetic-plan"}]',
                     "docs/plans/client-release/Checkpoints.json": '[{"checkpoint":"synthetic"}]',
+                    "docs/plan/Manifest.json": '[{"id":"synthetic-plan"}]',
+                    "docs/plan/client-release/Checkpoints.json": '[{"checkpoint":"synthetic"}]',
+                    "apps/desktop/test/layout/profiles/studio/mobile/studio_mobile_sha256_manifest.json": '{"algorithm":"sha256","goldens":[],"normalization":{},"source":"synthetic"}',
                     "plugins/lico-up-codex/mcp/server.json": '{"mcpServers":{}}',
                     "schemas/client_bridge/manifest.json": '{"families":[],"version":"1"}',
                     "schemas/client_bridge/state.json": '{"operations":[],"version":"1"}',
@@ -132,6 +137,13 @@ class LicoupDomainPolicyTests(unittest.TestCase):
             'source = "https://raw.githubusercontent.com/vendor/project/main/catalog.json"',
             'endpoint = "https://api.telegram.org"',
             'schema = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"',
+            'source = "https://api.flutter.dev/flutter/widgets/widgets-library.html"',
+            'source = "https://platform.claude.com/docs"',
+            'source = "https://platform.deepseek.com/docs"',
+            'source = "https://platform.moonshot.cn/docs"',
+            'source = "https://hermes-agent.nousresearch.com/docs"',
+            'source = "https://openai.github.io/openai-agents-python/"',
+            'endpoint = "https://generativelanguage.googleapis.com"',
         )
         for line in lines:
             with self.subTest(line=line):
@@ -169,6 +181,42 @@ class LicoupDomainPolicyTests(unittest.TestCase):
             scan_text("crates/licoup-native/src/platform/orchestrator_ipc/mod.rs", "server: self.clone(),"),
             [],
         )
+        self.assertEqual(
+            scan_text("apps/desktop/lib/src/example.dart", "url = location.href;"),
+            [],
+        )
+        self.assertEqual(
+            scan_text("apps/desktop/lib/src/example.dart", "host = trimmed.substring(1);"),
+            [],
+        )
+
+    def test_historical_client_hosts_are_scoped_to_their_public_contract_paths(self) -> None:
+        cases = (
+            (
+                "crates/lico-client-native/src/domain/mobile_relay.rs",
+                'endpoint = "https://old-relay.trycloudflare.com"',
+            ),
+            (
+                "crates/licoup-native/src/domain/mobile_relay/config.rs",
+                'endpoint = "https://temporary.trycloudflare.com"',
+            ),
+            (
+                "packages/contracts/client/agent-conversation-adapter.schema.json",
+                '"$id": "https://licomesh.dev/schema.json"',
+            ),
+        )
+        for path, line in cases:
+            with self.subTest(path=path):
+                self.assertEqual(scan_text(path, line), [])
+        self.assertEqual(
+            rules(
+                scan_text(
+                    "deployment/relay.env",
+                    'endpoint = "https://temporary.trycloudflare.com"',
+                )
+            ),
+            ["disallowed-domain"],
+        )
 
     def test_private_endpoints_still_flagged(self) -> None:
         findings = scan_text(
@@ -184,12 +232,45 @@ class LicoupDomainPolicyTests(unittest.TestCase):
         )
         self.assertEqual(rules(findings), ["ip-literal"])
 
+    def test_loopback_range_is_local_and_not_public_endpoint_metadata(self) -> None:
+        self.assertEqual(
+            scan_text(
+                "crates/licoup-native/src/platform/url_security.rs",
+                'const loopback = "http://127.0.0.2/status";',
+            ),
+            [],
+        )
+
     def test_client_update_negative_ip_fixture_is_not_public_endpoint_metadata(self) -> None:
         findings = scan_text(
             "crates/licoup-native/src/domain/client_update/github_source.rs",
             'let blocked = "http://192.168.1.5/steal";',
         )
         self.assertEqual(findings, [])
+
+    def test_historical_proxy_negative_ip_fixture_is_not_public_endpoint_metadata(self) -> None:
+        findings = scan_text(
+            "crates/lico-client-native/src/domain/proxy_bridge.rs",
+            'let blocked = "http://192.168.1.5/steal";',
+        )
+        self.assertEqual(findings, [])
+
+    def test_known_client_fixture_paths_do_not_publish_synthetic_home_paths(self) -> None:
+        macos_path = "/" + "Users/" + "example/project"
+        linux_path = "/" + "home/" + "example/project"
+        windows_path = "C:\\" + "Users\\" + "example\\project"
+        cases = (
+            ("apps/desktop/test/messaging/messaging_details_panel_test.dart", macos_path),
+            ("crates/licoup-native/src/platform/agent_workspace.rs", linux_path),
+            ("crates/lico-client-native/src/core/acp/tests.rs", windows_path),
+        )
+        for path, value in cases:
+            with self.subTest(path=path):
+                self.assertEqual(scan_text(path, value), [])
+        self.assertEqual(
+            rules(scan_text("crates/licoup-native/src/platform/runtime.rs", macos_path)),
+            ["developer-macos-home-path"],
+        )
 
 
 class LicoupSecretPredicateTests(unittest.TestCase):
