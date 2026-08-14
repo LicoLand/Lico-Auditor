@@ -54,6 +54,17 @@ FORMAL_DOCUMENTATION_FILES = frozenset(
     }
 )
 
+LICOUP_FORMAL_DOCUMENTATION_FILES = frozenset(
+    {
+        "docs/RELEASE-PACKAGES.md",
+        "docs/RELEASE-PACKAGES.zh-CN.md",
+    }
+)
+
+LICOUP_FORMAL_DOCUMENTATION_PREFIXES = (
+    "docs/platforms/",
+)
+
 
 def is_localized_formal_document(path: str) -> bool:
     """Localized siblings of formal root documents (for example
@@ -233,6 +244,13 @@ def documentation_governance_findings(repo_root: Path, profile: str) -> list[Fin
                 path not in FORMAL_DOCUMENTATION_FILES
                 and not is_localized_formal_document(path)
                 and not path.startswith(FORMAL_DOCUMENTATION_PREFIXES)
+                and not (
+                    profile == "licoup"
+                    and (
+                        path in LICOUP_FORMAL_DOCUMENTATION_FILES
+                        or path.startswith(LICOUP_FORMAL_DOCUMENTATION_PREFIXES)
+                    )
+                )
             ):
                 findings.append(
                     _finding(

@@ -342,6 +342,8 @@ CODE_LIKE_HOST_FINAL_LABELS = {
     "lock",
     "match",
     "metadata",
+    "method",
+    "method_url",
     "mjs",
     "origin",
     "payload",
@@ -376,6 +378,8 @@ PUBLIC_REFERENCE_HOSTS = {
     "core.telegram.org",
     "dart.dev",
     "desktop.docker.com",
+    "docs.appimage.org",
+    "docs.fedoraproject.org",
     "developer.android.com",
     "developer.apple.com",
     "csrc.nist.gov",
@@ -420,8 +424,11 @@ PUBLIC_REFERENCE_HOSTS = {
     "unofficial-builds.nodejs.org",
     "vuejs.org",
     "wiki.gnome.org",
+    "wiki.alpinelinux.org",
+    "wiki.archlinux.org",
     "www.apple.com",
     "www.conventionalcommits.org",
+    "www.debian.org",
     "www.envoyproxy.io",
     "www.gnu.org",
     "www.microsoft.com",
@@ -467,6 +474,7 @@ PUBLIC_INTEGRATION_HOSTS = {
 }
 PUBLIC_SOURCE_REFERENCE_HOSTS = {
     "api.github.com",
+    "api.telegram.org",
     "developer.apple.com",
     # Official vendor, distribution, and documentation domains referenced from
     # client source, tooling, and catalog attribution metadata.
@@ -491,25 +499,32 @@ PUBLIC_SOURCE_REFERENCE_HOSTS = {
     "docs.cursor.com",
     "docs.microsoft.com",
     "docs.openclaw.ai",
+    "docs.x.ai",
     "download.opensuse.org",
     "flutter.dev",
     "forum.cursor.com",
     "github.com",
+    "objects.githubusercontent.com",
     "keepachangelog.com",
     "kilo.ai",
     "nodejs.org",
     "opencode.ai",
+    "dev.opencode.ai",
     "opencollective.com",
     "platform.kimi.ai",
     "pub.dev",
+    "raw.githubusercontent.com",
     "repo.almalinux.org",
     "semver.org",
     "static.rust-lang.org",
     "downloads.cursor.com",
     "help.openai.com",
+    "developers.openai.com",
+    "schemas.microsoft.com",
     "wiki.gnome.org",
     "www.apple.com",
     "www.kimi.com",
+    "www-cdn.anthropic.com",
 }
 COLON = ":"
 OPTIONAL_PORT_PATTERN = _join(["(?", COLON, r"\d+)?"])
@@ -709,9 +724,9 @@ LICOUP_JSON_PATH_PATTERNS = (
     r"apps/desktop/macos/runner/assets\.xcassets/.+/sourcemanifest\.json",
     r"apps/desktop/packaging\.modules\.json",
     r"apps/desktop/test/(?:fixtures|layout)/.+\.json",
-    r"crates/licoup-native/resources/[^/]+\.json",
+    r"crates/licoup-native/resources/.+\.json",
     r"crates/licoup-native/src/domain/agent_intelligence_catalog/[^/]+\.json",
-    r"crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot\.json",
+    r"crates/licoup-native/src/domain/provider_model_pricing/pricing_(?:catalog|snapshot)\.json",
     r"crates/licoup-native/src/domain/targets/model_catalog/[^/]+\.json",
     r"docs/plans/manifest\.json",
     r"docs/plans/.+/checkpoints\.json",
@@ -1165,13 +1180,23 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
             return bool(keys)
         if normalized == "apps/desktop/assets/update/licoup-update-public-keys.json":
             return keys == {"keys"} and isinstance(data.get("keys"), dict)
+        if normalized == "crates/licoup-native/resources/client-update-public-keys.json":
+            return keys == {"keys"} and isinstance(data.get("keys"), dict)
+        if normalized == "crates/licoup-native/resources/adaptive_flywheel/builtin-basic/workflow.json":
+            return {"schema", "states", "transitions"} <= keys
         if re.fullmatch(
             r"crates/licoup-native/src/domain/agent_intelligence_catalog/[^/]+\.json",
             normalized,
         ):
-            return {"schema_version", "catalog_version", "as_of", "source_url"} <= keys
+            return (
+                "source_url" in keys
+                and "last_updated" in keys
+                and bool(keys & {"models", "variants"})
+            ) or {"schema_version", "catalog_version", "as_of", "source_url"} <= keys
         if normalized == "crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot.json":
             return {"schema_version", "snapshot_date", "providers"} <= keys
+        if normalized == "crates/licoup-native/src/domain/provider_model_pricing/pricing_catalog.json":
+            return {"agents", "last_updated", "providers"} <= keys
         if re.fullmatch(r"plugins/[^/]+/mcp/server\.json", normalized):
             return "mcpServers" in keys
     if normalized.startswith("artifacts/") or normalized.startswith("vendor/"):
@@ -1424,6 +1449,12 @@ def is_non_loopback_ipv4(value: str, relative_path: str) -> bool:
     try:
         address = ipaddress.ip_address(value)
     except ValueError:
+        return False
+    if (
+        normalized_repo_path(relative_path)
+        == "crates/licoup-native/src/domain/client_update/github_source.rs"
+        and int(address) == 3232235781
+    ):
         return False
     return (
         address.version == 4

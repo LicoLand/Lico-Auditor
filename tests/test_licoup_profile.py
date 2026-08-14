@@ -28,10 +28,13 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
                     ".vscode/settings.json": '{"cmake.ignoreCMakeListsMissing":true}',
                     "apps/desktop/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json": '{"images":[],"info":{"version":1}}',
                     "apps/desktop/assets/update/licoup-update-public-keys.json": '{"keys":{}}',
+                    "crates/licoup-native/resources/client-update-public-keys.json": '{"keys":{}}',
+                    "crates/licoup-native/resources/adaptive_flywheel/builtin-basic/workflow.json": '{"schema":"v1","states":[],"transitions":[]}',
                     "apps/desktop/macos/Runner/Assets.xcassets/AppIcon.appiconset/SourceManifest.json": '{"icons":[],"schemaVersion":"1","source":"synthetic"}',
                     "crates/licoup-native/src/domain/targets/model_catalog/builtin_catalog.json": '{"agents":[],"description":"synthetic","schemaVersion":"1"}',
                     "crates/licoup-native/src/domain/agent_intelligence_catalog/example.json": '{"schema_version":2,"catalog_version":"synthetic","as_of":"2026-01-01","source_url":"https://artificialanalysis.ai"}',
                     "crates/licoup-native/src/domain/provider_model_pricing/pricing_snapshot.json": '{"schema_version":1,"snapshot_date":"2026-01-01","providers":[]}',
+                    "crates/licoup-native/src/domain/provider_model_pricing/pricing_catalog.json": '{"agents":[],"last_updated":"2026-01-01","providers":[]}',
                     "docs/plans/Manifest.json": '[{"id":"synthetic-plan"}]',
                     "docs/plans/client-release/Checkpoints.json": '[{"checkpoint":"synthetic"}]',
                     "plugins/lico-up-codex/mcp/server.json": '{"mcpServers":{}}',
@@ -121,6 +124,14 @@ class LicoupDomainPolicyTests(unittest.TestCase):
             'baseUrl = "https://api.deepseek.com/v1"',
             'baseUrl = "https://api.moonshot.cn/v1"',
             'download = "https://downloads.cursor.com/client.tar.gz"',
+            'source = "https://developers.openai.com/api/docs/models"',
+            'source = "https://www-cdn.anthropic.com/files/model-card.pdf"',
+            'source = "https://docs.x.ai/developers/pricing"',
+            'source = "https://dev.opencode.ai/docs/zen"',
+            'source = "https://objects.githubusercontent.com/release/item"',
+            'source = "https://raw.githubusercontent.com/vendor/project/main/catalog.json"',
+            'endpoint = "https://api.telegram.org"',
+            'schema = "http://schemas.microsoft.com/appx/manifest/foundation/windows10"',
         )
         for line in lines:
             with self.subTest(line=line):
@@ -173,6 +184,13 @@ class LicoupDomainPolicyTests(unittest.TestCase):
         )
         self.assertEqual(rules(findings), ["ip-literal"])
 
+    def test_client_update_negative_ip_fixture_is_not_public_endpoint_metadata(self) -> None:
+        findings = scan_text(
+            "crates/licoup-native/src/domain/client_update/github_source.rs",
+            'let blocked = "http://192.168.1.5/steal";',
+        )
+        self.assertEqual(findings, [])
+
 
 class LicoupSecretPredicateTests(unittest.TestCase):
     def test_rust_path_reexports_and_type_annotations_are_not_secrets(self) -> None:
@@ -215,6 +233,30 @@ class LicoupSecretPredicateTests(unittest.TestCase):
 
 
 class LicoupDocumentationGovernanceTests(unittest.TestCase):
+    def test_licoup_release_and_platform_documents_are_formal_paths(self) -> None:
+        import subprocess
+
+        from lico_auditor.documentation_rules import documentation_governance_findings
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_fixtures(
+                root,
+                {
+                    "docs/RELEASE-PACKAGES.md": "# Release packages\n",
+                    "docs/RELEASE-PACKAGES.zh-CN.md": "# 发布包\n",
+                    "docs/platforms/MACOS-DIRECT-DISTRIBUTION.md": "# macOS\n",
+                    "docs/platforms/MACOS-DIRECT-DISTRIBUTION.zh-CN.md": "# macOS\n",
+                },
+            )
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True)
+            findings = documentation_governance_findings(root, "licoup")
+            self.assertNotIn(
+                "documentation-formal-path-invalid",
+                {item.rule for item in findings},
+            )
+
     def test_localized_formal_sibling_is_a_valid_formal_path(self) -> None:
         import subprocess
 
