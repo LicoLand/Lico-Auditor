@@ -17,7 +17,7 @@
     ]
   },
   "current_gate_scope": [
-    "single latest only branch source-of-truth enforcement",
+    "latest only branch source-of-truth enforcement",
     "common privacy baseline for all public repositories",
     "BadTower node configuration and implementation-owned schemas",
     "tracked documentation governance and local-only asset boundaries",

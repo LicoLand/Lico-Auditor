@@ -53,6 +53,58 @@ class ContributionGovernanceTests(unittest.TestCase):
             status = main(["gate", "--repo", str(root), "--format", "json", *args])
         return status, json.loads(output.getvalue())
 
+    def run_json_source_of_truth(self, root: Path) -> tuple[int, list[dict[str, object]]]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = main(
+                [
+                    "source-of-truth",
+                    "--repo",
+                    str(root),
+                    "--require-current-head",
+                    "--format",
+                    "json",
+                ]
+            )
+        return status, json.loads(output.getvalue())
+
+    def init_auditor_remote(self, parent: Path) -> tuple[Path, Path]:
+        remote = parent / "remote.git"
+        checkout = parent / "checkout"
+        subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+        checkout.mkdir()
+        self.init_repo(checkout)
+        self.commit(checkout, "initial audit policy")
+        subprocess.run(["git", "branch", "-M", "only"], cwd=checkout, check=True)
+        subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=checkout, check=True)
+        subprocess.run(["git", "push", "-q", "-u", "origin", "only"], cwd=checkout, check=True)
+        subprocess.run(["git", "symbolic-ref", "HEAD", "refs/heads/only"], cwd=remote, check=True)
+        return remote, checkout
+
+    def test_source_of_truth_allows_temporary_remote_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            _remote, checkout = self.init_auditor_remote(Path(raw))
+            subprocess.run(["git", "branch", "fix/audit-policy"], cwd=checkout, check=True)
+            subprocess.run(["git", "push", "-q", "origin", "fix/audit-policy"], cwd=checkout, check=True)
+            status, findings = self.run_json_source_of_truth(checkout)
+
+        self.assertEqual(status, 0)
+        self.assertEqual(findings, [])
+
+    def test_source_of_truth_rejects_stale_only_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            _remote, checkout = self.init_auditor_remote(Path(raw))
+            old_head = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=checkout, check=True, capture_output=True, text=True
+            ).stdout.strip()
+            self.commit(checkout, "update audit policy")
+            subprocess.run(["git", "push", "-q", "origin", "only"], cwd=checkout, check=True)
+            subprocess.run(["git", "reset", "-q", "--hard", old_head], cwd=checkout, check=True)
+            status, findings = self.run_json_source_of_truth(checkout)
+
+        self.assertNotEqual(status, 0)
+        self.assertEqual([item["rule"] for item in findings], ["audit-not-running-latest-only"])
+
     def test_cursor_in_contributors_file_is_blocked(self) -> None:
         findings = scan_contributor_attribution("CONTRIBUTORS.md", "- Cursor AI\n")
         self.assertEqual([item.rule for item in findings], ["cursor-contributor-attribution"])
@@ -226,7 +278,6 @@ class ContributionGovernanceTests(unittest.TestCase):
         self.assertIn("    name: final-gate", workflow)
         self.assertIn("          ref: only", workflow)
         self.assertIn("            --require-current-head", workflow)
-        self.assertIn("            --enforce-remote-heads", workflow)
         self.assertEqual(workflow.count("          persist-credentials: false"), 2)
         self.assertIn("            --profile auto", workflow)
         self.assertIn('            --ref "$candidate_ref"', workflow)

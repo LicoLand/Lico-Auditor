@@ -161,85 +161,46 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
                 Finding(
                     severity="high-risk",
                     rule="audit-default-branch-not-only",
-                    message="Audit gate default branch must be the single only branch.",
+                    message="Audit gate default branch must be only.",
                     path=default_ref or "<remote-head>",
                     evidence_class="source-of-truth",
                 )
             )
 
-    code, stdout, _stderr = git_text(repo_root, ["ls-remote", "--heads", args.remote])
-    remote_heads: dict[str, str] = {}
+    expected_ref = f"refs/heads/{branch}"
+    code, stdout, _stderr = git_text(repo_root, ["ls-remote", "--heads", args.remote, expected_ref])
     if code != 0:
-        findings.append(Finding("error", "audit-remote-heads-unavailable", "Unable to inspect configured audit branches."))
+        findings.append(Finding("error", "audit-only-branch-unavailable", "Unable to inspect the configured only branch."))
     else:
+        remote_only_head = ""
         for line in stdout.splitlines():
             parts = line.split()
-            if len(parts) == 2:
-                remote_heads[parts[1]] = parts[0]
-        expected_ref = f"refs/heads/{branch}"
-        if args.enforce_remote_heads and set(remote_heads) != {expected_ref}:
-            for ref in sorted(set(remote_heads) - {expected_ref}):
-                findings.append(
-                    Finding(
-                        severity="high-risk",
-                        rule="audit-extra-remote-branch",
-                        message="Audit gate repository must not expose any remote branch except only.",
-                        path=ref,
-                        evidence_class="source-of-truth",
-                    )
+            if len(parts) == 2 and parts[1] == expected_ref:
+                remote_only_head = parts[0]
+                break
+        if not remote_only_head:
+            findings.append(
+                Finding(
+                    severity="error",
+                    rule="audit-only-branch-missing",
+                    message="Audit gate repository must expose the only branch.",
+                    path=expected_ref,
+                    evidence_class="source-of-truth",
                 )
-            if expected_ref not in remote_heads:
-                findings.append(
-                    Finding(
-                        severity="error",
-                        rule="audit-only-branch-missing",
-                        message="Audit gate repository must expose the only branch.",
-                        path=expected_ref,
-                        evidence_class="source-of-truth",
-                    )
-                )
-        if args.require_current_head and expected_ref in remote_heads:
+            )
+        elif args.require_current_head:
             local_head = current_commit(repo_root)
-            if local_head != remote_heads[expected_ref]:
+            if local_head != remote_only_head:
                 findings.append(
                     Finding(
                         severity="high-risk",
                         rule="audit-not-running-latest-only",
                         message="Audit Action must run the latest HEAD of the only branch.",
                         path=expected_ref,
-                        fingerprint=remote_heads[expected_ref][:16],
+                        fingerprint=remote_only_head[:16],
                         evidence_class="source-of-truth",
                     )
                 )
-
-    if args.enforce_local_branches:
-        code, stdout, _stderr = git_text(repo_root, ["for-each-ref", "--format=%(refname)", "refs/heads"])
-        if code != 0:
-            findings.append(Finding("error", "audit-local-branches-unavailable", "Unable to inspect local audit branches."))
-        else:
-            local_refs = {line.strip() for line in stdout.splitlines() if line.strip()}
-            expected_local = f"refs/heads/{branch}"
-            if local_refs != {expected_local}:
-                for ref in sorted(local_refs - {expected_local}):
-                    findings.append(
-                        Finding(
-                            severity="high-risk",
-                            rule="audit-extra-local-branch",
-                            message="Local audit checkout must not keep branches other than only.",
-                            path=ref,
-                            evidence_class="source-of-truth",
-                        )
-                    )
-                if expected_local not in local_refs:
-                    findings.append(
-                        Finding(
-                            severity="error",
-                            rule="audit-local-only-branch-missing",
-                            message="Local audit checkout must keep the only branch.",
-                            path=expected_local,
-                            evidence_class="source-of-truth",
-                        )
-                    )
 
     return emit_findings(findings, fmt=args.format)
 
@@ -290,13 +251,11 @@ def build_parser() -> argparse.ArgumentParser:
     surface.add_argument("--format", choices=("text", "json"), default="text")
     surface.set_defaults(func=command_github_surface)
 
-    source = sub.add_parser("source-of-truth", help="Fail unless the audit gate runs from the latest unique only branch.")
+    source = sub.add_parser("source-of-truth", help="Fail unless the audit gate runs from the latest only branch.")
     source.add_argument("--repo", default=".", help="Audit repository checkout.")
     source.add_argument("--remote", default="origin", help="Git remote name or URL to inspect.")
-    source.add_argument("--branch", default=ONLY_BRANCH, help="Required single source-of-truth branch.")
+    source.add_argument("--branch", default=ONLY_BRANCH, help="Required source-of-truth branch.")
     source.add_argument("--require-current-head", action="store_true", help="Require local HEAD to equal remote only HEAD.")
-    source.add_argument("--enforce-remote-heads", action="store_true", help="Require the remote to expose no branch except only.")
-    source.add_argument("--enforce-local-branches", action="store_true", help="Require the local checkout to keep no branch except only.")
     source.add_argument("--format", choices=("text", "json"), default="text")
     source.set_defaults(func=command_source_of_truth)
 
