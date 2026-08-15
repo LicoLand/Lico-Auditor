@@ -126,7 +126,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             findings = scan_worktree(root, profile="fabrigent")
         self.assertIn("documentation-module-readme-missing", rules(findings))
 
-    def test_readmes_must_cross_link_and_declare_language_roles(self) -> None:
+    def test_root_readmes_do_not_require_links_or_language_roles(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             create_governed_repository(root)
@@ -134,24 +134,22 @@ class DocumentationGovernanceTests(unittest.TestCase):
             (root / "README.zh-CN.md").write_text("# 示例\n", encoding="utf-8")
             run_git(root, "add", "README.md", "README.zh-CN.md")
             findings = scan_worktree(root, profile="licoup")
-        self.assertIn("documentation-readme-language-link-missing", rules(findings))
-        self.assertIn("documentation-readme-language-role-missing", rules(findings))
+        self.assertEqual(findings, [])
 
-    def test_localization_version_wording_satisfies_language_role(self) -> None:
+    def test_root_readmes_remain_required_public_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            create_governed_repository(root)
-            (root / "README.md").write_text(
-                "# Example\n\nEnglish is the normative language.\n\n[简体中文](README.zh-CN.md)\n",
-                encoding="utf-8",
+            create_governed_repository(
+                root,
+                omitted=frozenset({"README.md"}),
             )
-            (root / "README.zh-CN.md").write_text(
-                "# 示例\n\n英语是规范语言，本文件是简体中文本地化版本。\n\n[English](README.md)\n",
-                encoding="utf-8",
-            )
-            run_git(root, "add", "README.md", "README.zh-CN.md")
             findings = scan_worktree(root, profile="fabrigent")
-        self.assertNotIn("documentation-readme-language-role-missing", rules(findings))
+        missing = [
+            item
+            for item in findings
+            if item.rule == "documentation-required-path-missing"
+        ]
+        self.assertEqual({item.path for item in missing}, {"README.md"})
 
     def test_formal_docs_require_approved_path_index_and_valid_links(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

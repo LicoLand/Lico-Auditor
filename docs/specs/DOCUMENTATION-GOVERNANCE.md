@@ -38,14 +38,16 @@ Tracked formal Markdown under `docs/` must be one of the named documents above
 or live under `architecture/`, `functionality/`, `protocols/`, `examples/`, or
 `adrs/`.
 
-## Language, index, and link integrity
+## README boundary, index, and link integrity
 
-- `README.md` and `README.zh-CN.md` must link to each other.
-- The README pair must identify the normative language and localized language.
+- `README.md` and `README.zh-CN.md` must remain tracked root entry points.
+  README wording, language roles, links, formatting, and product claims are
+  author-owned and are not documentation-governance checks.
 - Every formal Markdown document must be linked directly from
   `docs/README.md`.
-- Every relative Markdown link or image target must resolve to a tracked file
-  or tracked directory.
+- Every relative Markdown link or image target in governed documentation below
+  `docs/` or module documentation must resolve to a tracked file or tracked
+  directory. Root README files are excluded from this content check.
 
 ## Modules and generated projections
 
@@ -92,8 +94,6 @@ The documentation gate emits fixed, redacted findings:
 - `documentation-local-asset-not-ignored`
 - `documentation-external-skill-tracked`
 - `documentation-module-readme-missing`
-- `documentation-readme-language-link-missing`
-- `documentation-readme-language-role-missing`
 - `documentation-index-entry-missing`
 - `documentation-link-target-missing`
 - `documentation-generated-source-missing`

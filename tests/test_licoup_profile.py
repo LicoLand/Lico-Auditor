@@ -50,9 +50,23 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
                     "tools/client-support-matrix.json": '{"defaults":{},"services":[],"targets":[]}',
                     "tools/client-version.json": '{"buildNumber":"1","productVersion":"0.0.1","schemaVersion":"1"}',
                     "tools/scripts/client-agent-auth-status/probes.json": '{"probes":[],"schemaVersion":"1"}',
+                    "tools/scripts/config/readme-fast-files.json": '["README.md","README.zh-CN.md"]',
+                    "tools/scripts/config/secure-mesh-client-boundary.json": '{"schemaVersion":"1"}',
                 },
             )
             self.assertEqual(scan_worktree(root, profile="licoup"), [])
+
+    def test_licoup_profile_rejects_unlisted_json_array_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_fixtures(
+                root,
+                {"tools/scripts/config/unlisted-files.json": '["README.md"]'},
+            )
+            self.assertEqual(
+                rules(scan_worktree(root, profile="licoup")),
+                ["json-data-file-not-allowlisted"],
+            )
 
     def test_licoup_profile_still_rejects_unlisted_data_json(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

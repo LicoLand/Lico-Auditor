@@ -673,6 +673,8 @@ class ProjectPolicy:
     description: str
     allowed_json_file_names: frozenset[str]
     allowed_json_path_patterns: tuple[str, ...]
+    allowed_json_paths: frozenset[str] = frozenset()
+    allowed_json_list_paths: frozenset[str] = frozenset()
     shape_marker_keys: frozenset[str] = frozenset(CONFIG_SHAPE_MARKER_KEYS)
 
 
@@ -806,7 +808,35 @@ LICOUP_JSON_PATH_PATTERNS = (
     r"tools/client-[^/]+\.json",
     r"tools/licoup-[^/]+\.json",
     r"tools/scripts/[^/]+/probes\.json",
-    r"tools/scripts/config/[^/]+\.json",
+)
+LICOUP_EXACT_JSON_CONFIG_PATHS = frozenset(
+    {
+        "tools/scripts/config/client-artifact-verification-receipts-report.schema.json",
+        "tools/scripts/config/client-artifact-verification-receipts.json",
+        "tools/scripts/config/client-release-acceptance-report.schema.json",
+        "tools/scripts/config/client-release-acceptance.json",
+        "tools/scripts/config/readme-fast-files.json",
+        "tools/scripts/config/secure-mesh-acp-archive-release-proof.json",
+        "tools/scripts/config/secure-mesh-acp-relay-governed-baseline.json",
+        "tools/scripts/config/secure-mesh-client-boundary.json",
+        "tools/scripts/config/secure-mesh-e2ee-evidence-routes.json",
+        "tools/scripts/config/secure-mesh-e2ee-report-scope.json",
+        "tools/scripts/config/secure-mesh-encrypted-file-handoff.json",
+        "tools/scripts/config/secure-mesh-pairwise-content-audit.json",
+        "tools/scripts/config/secure-mesh-pairwise-review-authorities.json",
+        "tools/scripts/config/secure-mesh-physical-device-matrix.json",
+        "tools/scripts/config/secure-mesh-physical-evidence.json",
+        "tools/scripts/config/secure-mesh-platform-secret-store-matrix.json",
+        "tools/scripts/config/secure-mesh-release-proof.json",
+        "tools/scripts/config/secure-mesh-report-redaction.json",
+        "tools/scripts/config/secure-mesh-trust-ux.json",
+        "tools/scripts/config/secure-mesh-windows-implementation.json",
+    }
+)
+LICOUP_JSON_LIST_PATHS = frozenset(
+    {
+        "tools/scripts/config/readme-fast-files.json",
+    }
 )
 BADTOWER_JSON_PATH_PATTERNS = (
     r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
@@ -838,6 +868,8 @@ PROJECT_POLICIES = {
         description="LicoUp client repository policy.",
         allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + LICOUP_JSON_PATH_PATTERNS,
+        allowed_json_paths=LICOUP_EXACT_JSON_CONFIG_PATHS,
+        allowed_json_list_paths=LICOUP_JSON_LIST_PATHS,
     ),
     "badtower": ProjectPolicy(
         policy_id="badtower",
@@ -943,6 +975,8 @@ def is_allowed_json_config_path(relative_path: str, policy: ProjectPolicy | None
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
     if name in selected.allowed_json_file_names:
+        return True
+    if normalized in selected.allowed_json_paths:
         return True
     if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
         return True
@@ -1216,7 +1250,10 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     if selected.policy_id == "skills" and SKILLS_CANONICAL_CONFIG_PATH_PATTERN.fullmatch(normalized):
         return is_skills_canonical_config_shape(data)
     if not isinstance(data, dict):
-        return isinstance(data, list) and normalized.startswith(JSON_LIST_SHAPE_PREFIXES)
+        return isinstance(data, list) and (
+            normalized in selected.allowed_json_list_paths
+            or normalized.startswith(JSON_LIST_SHAPE_PREFIXES)
+        )
     keys = json_object_keys(data)
     if not keys:
         return True
@@ -1288,6 +1325,8 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     if normalized.startswith("tools/registry/schema/") and name.endswith(".schema.json"):
         return {"$schema", "type"} <= keys and "properties" in keys
     if normalized.startswith("tools/registry/"):
+        return bool(keys & selected.shape_marker_keys)
+    if normalized in selected.allowed_json_paths:
         return bool(keys & selected.shape_marker_keys)
     if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
         return bool(keys & selected.shape_marker_keys)

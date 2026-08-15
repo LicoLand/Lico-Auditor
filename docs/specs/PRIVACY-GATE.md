@@ -20,7 +20,10 @@ The gate is layered:
 - `licoup` applies to the client repository `LicoLand/LicoUp`. It admits
   client contracts, desktop assets, update public-key metadata, native
   resource and model-reference catalogs, reviewed client tooling JSON, and
-  official public vendor documentation, distribution, and API origins.
+  official public vendor documentation, distribution, and API origins. Client
+  configurations under `tools/scripts/config/` require an exact file whitelist
+  entry; the whitelist includes `tools/scripts/config/readme-fast-files.json`,
+  whose JSON-array shape is admitted only for that exact path.
   Arbitrary export-like data files and unrecognized endpoints remain denied.
 - `badtower` applies to `LicoLand/BadTower`. It admits node-owned
   configuration, implementation schemas, registries, and synthetic examples;
@@ -97,9 +100,9 @@ continues to inspect complete reachable history without a legacy baseline.
 
 The `licoup`, `badtower`, and `fabrigent` profiles also validate
 the current tracked documentation publication candidate. The check covers the required public
-layout, bilingual README mapping, formal-document categories and index,
-relative links, module READMEs, generated-projection metadata, local-only
-ignore boundaries, and external skill ownership.
+layout, formal-document categories and index, relative links outside the root
+READMEs, module READMEs, generated-projection metadata, local-only ignore
+boundaries, and external skill ownership.
 
 This structural gate does not claim that document content is semantically
 correct. Capability truth, canonical fact ownership, ADR evidence, and release
