@@ -92,11 +92,6 @@ REQUIRED_IGNORED_SENTINELS = (
     "build/.lico-auditor-sentinel",
 )
 
-MODULE_MANIFEST_PATTERN = re.compile(
-    r"^(?:(apps|packages|crates|modules)/([^/]+)/(?:package\.json|pyproject\.toml|Cargo\.toml|pubspec\.yaml|module\.json)"
-    r"|(?:(plugins)/([^/]+)/(?:plugin\.json)))$"
-)
-
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 EXTERNAL_LINK_PATTERN = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
 GENERATED_MARKER_PATTERN = re.compile(
@@ -270,22 +265,6 @@ def documentation_governance_findings(repo_root: Path, profile: str) -> list[Fin
                     "documentation-local-asset-not-ignored",
                     str(PurePosixPath(sentinel).parent) + "/",
                     "The local-only asset directory must be ignored by the repository.",
-                )
-            )
-
-    module_roots = {
-        "/".join(part for part in match.groups() if part is not None)
-        for path in tracked
-        if (match := MODULE_MANIFEST_PATTERN.fullmatch(path)) is not None
-    }
-    for module_root in sorted(module_roots):
-        readme_path = f"{module_root}/README.md"
-        if readme_path not in tracked:
-            findings.append(
-                _finding(
-                    "documentation-module-readme-missing",
-                    readme_path,
-                    "An independently maintained module must provide a tracked lightweight README.",
                 )
             )
 

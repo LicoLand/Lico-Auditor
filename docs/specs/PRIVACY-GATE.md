@@ -146,8 +146,8 @@ selected range.
 The `licoup`, `badtower`, and `fabrigent` profiles also validate
 the current tracked documentation publication candidate. The check covers the required public
 layout, formal-document categories and index, relative links outside the root
-READMEs, module READMEs, generated-projection metadata, local-only ignore
-boundaries, and external skill ownership.
+READMEs, generated-projection metadata, local-only ignore boundaries, and
+external skill ownership.
 
 This structural gate does not claim that document content is semantically
 correct. Capability truth, canonical fact ownership, ADR evidence, and release
