@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -362,10 +364,22 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "credential-url")
 
-    def test_synthetic_tests_ignore_network_and_system_path_noise(self) -> None:
+    def test_synthetic_tests_demote_network_and_system_path_noise_to_warnings(self) -> None:
         text = f"url=https://{disallowed_domain()} {public_ipv4()} path={system_path()}"
-        self.assertEqual(scan_text("tests/vitest/server/example.test.mjs", text), [])
-        self.assertEqual(scan_text("fixtures/platform/example_test.mjs", text), [])
+        for path in ("tests/vitest/server/example.test.mjs", "fixtures/platform/example_test.mjs"):
+            findings = scan_text(path, text)
+            self.assertTrue(findings)
+            self.assertTrue(all(item.severity == "warning" for item in findings))
+
+    def test_synthetic_network_warnings_do_not_block_gate_exit(self) -> None:
+        from lico_auditor.report import emit_findings
+
+        text = f"url=https://{disallowed_domain()} {public_ipv4()} path={system_path()}"
+        findings = scan_text("tests/vitest/server/example.test.mjs", text)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            self.assertEqual(emit_findings(findings, fmt="text"), 0)
 
     def test_synthetic_tests_still_block_real_secret_shapes(self) -> None:
         findings = scan_text("tests/vitest/server/example.test.mjs", f"client_secret={opaque_secret_value()}")
@@ -374,16 +388,20 @@ class PrivacyGateTests(unittest.TestCase):
 
     def test_verify_scripts_are_synthetic_but_still_scan_secrets(self) -> None:
         synthetic = f"url=https://{disallowed_domain()} {public_ipv4()} path={system_path()}"
-        self.assertEqual(scan_text("tools/server-scripts/verify-example.mjs", synthetic), [])
+        synthetic_findings = scan_text("tools/server-scripts/verify-example.mjs", synthetic)
+        self.assertTrue(synthetic_findings)
+        self.assertTrue(all(item.severity == "warning" for item in synthetic_findings))
 
         findings = scan_text("tools/server-scripts/verify-example.mjs", f"client_secret={opaque_secret_value()}")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "secret-assignment")
+        self.assertEqual(findings[0].severity, "high-risk")
 
-    def test_synthetic_tests_still_block_developer_home_paths(self) -> None:
+    def test_synthetic_tests_report_developer_home_paths_as_warnings(self) -> None:
         findings = scan_text("tests/vitest/server/example.test.mjs", macos_home_path("example/private"))
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "developer-macos-home-path")
+        self.assertEqual(findings[0].severity, "warning")
 
     def test_generic_windows_developer_paths_fail_without_private_markers(self) -> None:
         findings = scan_text(

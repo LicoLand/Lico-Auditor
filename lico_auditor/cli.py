@@ -52,6 +52,7 @@ def collect_findings(
     max_commits: int = 0,
     profile: str | None = None,
     include_contribution: bool = True,
+    full_history: bool = False,
 ) -> list[Finding]:
     findings = scan_worktree(repo_root, commit=current_commit(repo_root), profile=profile)
     if include_contribution:
@@ -64,7 +65,15 @@ def collect_findings(
             )
         )
     if include_history:
-        findings.extend(scan_history(repo_root, ref=ref, max_commits=max_commits, profile=profile))
+        findings.extend(
+            scan_history(
+                repo_root,
+                ref=ref,
+                max_commits=max_commits,
+                profile=profile,
+                full_tree=full_history,
+            )
+        )
 
     unique: dict[tuple[object, ...], Finding] = {}
     for finding in findings:
@@ -86,6 +95,7 @@ def command_gate(args: argparse.Namespace) -> int:
         max_commits=args.max_commits,
         profile=args.profile,
         include_contribution=not getattr(args, "no_contribution", False),
+        full_history=getattr(args, "full_history", False),
     )
     return emit_findings(findings, fmt=args.format)
 
@@ -100,6 +110,7 @@ def command_report(args: argparse.Namespace) -> int:
             ref=args.ref,
             max_commits=args.max_commits,
             profile=args.profile,
+            full_history=getattr(args, "full_history", False),
         )
     else:
         findings = [Finding("error", "target-missing", "Target repo does not exist.")]
@@ -214,7 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
     gate = sub.add_parser("gate", help="Run privacy-leak gate against a checked-out repository.")
     gate.add_argument("--repo", required=True, help="Target repository root.")
     gate.add_argument("--ref", default="HEAD", help="Git ref to scan when --history is enabled.")
-    gate.add_argument("--history", action="store_true", help="Scan reachable git history for the target ref.")
+    gate.add_argument("--history", action="store_true", help="Scan commits reachable by the target ref; each commit scans only its introduced paths.")
+    gate.add_argument("--full-history", action="store_true", help="Scan every blob of every commit instead of only introduced paths. Intended for scheduled inventory audits.")
     gate.add_argument("--max-commits", type=int, default=0, help="Limit history scan to the latest N commits; 0 scans all.")
     gate.add_argument(
         "--no-contribution",
@@ -235,6 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--project", default="lico")
     report.add_argument("--ref", default="HEAD")
     report.add_argument("--history", action="store_true")
+    report.add_argument("--full-history", action="store_true")
     report.add_argument("--max-commits", type=int, default=0)
     report.add_argument(
         "--profile",

@@ -88,5 +88,6 @@ jobs:
             --repo target \
             --profile ${{ matrix.target.profile }} \
             --history \
+            --full-history \
             --no-contribution \
             --format text

@@ -19,9 +19,10 @@ do not affect consumers.
 ## Commands
 
 ```sh
-bin/lico-auditor gate --repo ../LicoUp --profile licoup --history
-bin/lico-auditor gate --repo ../BadTower --profile badtower --history
-bin/lico-auditor gate --repo ../Fabrigent --profile fabrigent --history
+# Normal CI gate: scan the current worktree plus paths introduced in BASE..HEAD.
+bin/lico-auditor gate --repo ../LicoUp --profile licoup --history --ref BASE..HEAD
+# Scheduled inventory audit: scan every blob in every reachable commit.
+bin/lico-auditor gate --repo ../LicoUp --profile licoup --history --full-history
 bin/lico-auditor report --repo ../LicoUp --profile licoup --history --format json
 bin/lico-auditor github-surface --all-targets
 bin/lico-auditor source-of-truth --repo . --require-current-head
@@ -47,9 +48,10 @@ as data:
 4. on a stable tag or explicit readiness dispatch, audit all reachable content
    history with contribution-history noise disabled.
 
-The fourth step still scans every historical file for privacy, secret, local
-machine, user-record, and governed data-policy findings. It suppresses only
-historical attribution that is separately enforced on the candidate range.
+The fourth step scans every historical file for privacy, secret, local
+machine, user-record, and governed data-policy findings. Normal candidate-range
+audits scan only paths introduced by each commit; full inventory audits opt in
+with `--full-history`.
 The workflow has read-only contents permission, receives no secrets, persists
 no checkout credential, and never executes target-repository code.
 
@@ -127,8 +129,16 @@ names to the correct profile.
   README mapping, index and link integrity, module READMEs, generated-source
   metadata, and local-only asset boundaries;
 
-Any `high-risk` or `error` finding exits non-zero. There is no warning-only mode
-for release gates.
+Only `error` and `high-risk` findings exit non-zero. `warning` and `info`
+findings are advisory: they are reported but do not block normal commits or
+promotion. Hard secret, user-record, and data-export rules are never
+downgraded. Context-sensitive IP/domain/path rules become warnings in
+synthetic test/fixture material, and IP/domain references in documentation
+become warnings instead of blockers.
+
+Repositories may own bounded JSON and public-reference admissions through a
+strict `.lico-auditor/policy.json` declaration; it cannot waive secret, user
+record, or data-export checks.
 
 See [PRIVACY-GATE.md](docs/specs/PRIVACY-GATE.md).
 See

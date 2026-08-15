@@ -96,6 +96,7 @@ jobs:
             --repo "$TARGET_PATH" \
             --profile auto \
             --history \
+            --full-history \
             --no-contribution \
             --ref "$HEAD_SHA" \
             --format text
