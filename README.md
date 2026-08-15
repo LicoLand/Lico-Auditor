@@ -12,8 +12,9 @@ organization governance; developer intent; and the official public website
 repositories.
 
 The `only` branch is the sole source of truth. CI jobs must checkout
-`LicoLand/Lico-Auditor@only`, verify that the remote exposes no other audit
-branch, and run the gate from the latest `only` HEAD before any target scan.
+`LicoLand/Lico-Auditor@only` and run the gate from the latest `only` HEAD before
+any target scan. Temporary branches support normal pull-request maintenance and
+do not affect consumers.
 
 ## Commands
 
@@ -23,7 +24,7 @@ bin/lico-auditor gate --repo ../BadTower --profile badtower --history
 bin/lico-auditor gate --repo ../Fabrigent --profile fabrigent --history
 bin/lico-auditor report --repo ../LicoUp --profile licoup --history --format json
 bin/lico-auditor github-surface --all-targets
-bin/lico-auditor source-of-truth --repo . --require-current-head --enforce-remote-heads
+bin/lico-auditor source-of-truth --repo . --require-current-head
 ```
 
 `gate` is suitable for CI. `report` emits a structured JSON payload. Neither
@@ -40,7 +41,7 @@ repository, ref, or profile override from the caller.
 The gate runs only canonical Lico-Auditor code and treats the candidate checkout
 as data:
 
-1. verify that `only` is the latest and sole remote audit branch;
+1. verify that the audit code matches the latest `only` branch;
 2. resolve the policy profile from the owning repository name;
 3. audit the candidate commit range, including contribution metadata; and
 4. on a stable tag or explicit readiness dispatch, audit all reachable content

@@ -18,7 +18,7 @@
     ]
   },
   "current_gate_scope": [
-    "single latest only branch source-of-truth enforcement",
+    "latest only branch source-of-truth enforcement",
     "common privacy baseline for all public repositories",
     "LicoUp desktop, mobile, native resource, and public client-contract JSON",
     "tracked documentation governance and local-only asset boundaries",
