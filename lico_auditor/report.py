@@ -5,7 +5,7 @@ import os
 import sys
 from collections import Counter
 
-from .models import AuditReport, Finding
+from .models import BLOCKING_SEVERITIES, AuditReport, Finding
 
 
 DEFAULT_TEXT_FINDING_LIMIT = 200
@@ -20,11 +20,11 @@ def text_finding_limit() -> int:
 
 
 def emit_findings(findings: list[Finding], *, fmt: str = "text") -> int:
-    failed = any(item.severity in {"high-risk", "error"} for item in findings)
+    failed = any(item.severity in BLOCKING_SEVERITIES for item in findings)
     if fmt == "json":
         print(json.dumps([item.to_dict() for item in findings], indent=2, sort_keys=True))
     elif findings:
-        print("[lico-auditor] failed", file=sys.stderr)
+        print("[lico-auditor] failed" if failed else "[lico-auditor] passed with warnings", file=sys.stderr)
         by_rule = Counter(item.rule for item in findings)
         by_severity = Counter(item.severity for item in findings)
         print(f"  findings={len(findings)} by_severity={dict(sorted(by_severity.items()))}", file=sys.stderr)

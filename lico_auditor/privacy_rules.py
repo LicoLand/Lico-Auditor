@@ -656,6 +656,48 @@ WINDOWS_DEVELOPER_PATH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Rule confidence model: hard rules are never downgraded. Context-sensitive
+# rules are high-confidence outside fixtures and documentation, but become
+# advisory warnings in synthetic test/fixture material and, for IP/domain
+# references, in documentation material.
+HARD_BLOCK_TEXT_RULES = frozenset(
+    {
+        "auth-header-secret",
+        "cloud-access-token",
+        "credential-url",
+        "jwt-token",
+        "private-key-material",
+        "secret-assignment",
+        "ssh-public-key-material",
+    }
+)
+CONTEXT_SENSITIVE_TEXT_RULES = frozenset(
+    {
+        "admin-ssh-endpoint",
+        "business-sensitive-assignment",
+        "cloud-server-provisioning-setting",
+        "developer-linux-home-path",
+        "developer-macos-home-path",
+        "developer-windows-workspace-path",
+        "disallowed-domain",
+        "ip-literal",
+        "operational-endpoint-url",
+        "production-metadata-assignment",
+        "provider-resource-id",
+        "system-or-deployment-path",
+    }
+)
+DOCUMENTATION_REFERENCE_TEXT_RULES = frozenset({"disallowed-domain", "ip-literal"})
+
+REPOSITORY_POLICY_PATH = ".lico-auditor/policy.json"
+REPOSITORY_POLICY_SCHEMA_VERSION = 1
+REPOSITORY_POLICY_MAX_DECLARATIONS = 64
+REPOSITORY_POLICY_MAX_DOMAINS = 64
+REPOSITORY_JSON_DECLARATION_KINDS = frozenset(
+    {"config-object", "json", "string-array", "string-map"}
+)
+
+
 
 @dataclass(frozen=True)
 class Rule:
@@ -676,6 +718,33 @@ class ProjectPolicy:
     allowed_json_paths: frozenset[str] = frozenset()
     allowed_json_list_paths: frozenset[str] = frozenset()
     shape_marker_keys: frozenset[str] = frozenset(CONFIG_SHAPE_MARKER_KEYS)
+
+
+@dataclass(frozen=True)
+class RepositoryJsonDeclaration:
+    path: str
+    kind: str
+
+
+@dataclass(frozen=True)
+class RepositoryPolicy:
+    schema_version: int = REPOSITORY_POLICY_SCHEMA_VERSION
+    declarations: tuple[RepositoryJsonDeclaration, ...] = ()
+    public_reference_domains: frozenset[str] = frozenset()
+
+    def declaration_for(self, relative_path: str) -> RepositoryJsonDeclaration | None:
+        normalized = normalized_repo_path(relative_path)
+        for declaration in self.declarations:
+            if declaration.path == normalized:
+                return declaration
+        return None
+
+    def allows_public_reference_host(self, host: str) -> bool:
+        normalized = host.lower().strip("[] \t\r\n.,;:)")
+        return any(
+            normalized == domain or normalized.endswith("." + domain)
+            for domain in self.public_reference_domains
+        )
 
 
 WORKFLOW_TEMPLATE_METADATA_PATH_PATTERN = re.compile(
@@ -927,6 +996,129 @@ def policy_profile_for_repo_name(repo_name: str) -> str:
     return REPOSITORY_POLICY_ALIASES.get(repo_name, "common")
 
 
+
+
+def _repository_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate repository policy key")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(_value):
+    raise ValueError("non-finite repository policy number")
+
+
+def _invalid_repository_policy(message):
+    return None, message
+
+
+def parse_repository_policy(raw):
+    try:
+        text = raw.decode("utf-8", "strict")
+        data = json.loads(
+            text,
+            object_pairs_hook=_repository_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except (UnicodeDecodeError, ValueError, TypeError, OverflowError, RecursionError):
+        return _invalid_repository_policy("Repository policy must be strict UTF-8 JSON.")
+
+    if not isinstance(data, dict):
+        return _invalid_repository_policy("Repository policy must be a JSON object.")
+    keys = {str(key) for key in data}
+    if keys != {"schemaVersion", "allowedJsonPaths", "publicReferenceDomains"}:
+        return _invalid_repository_policy(
+            "Repository policy must contain exactly schemaVersion, allowedJsonPaths, and publicReferenceDomains."
+        )
+    if type(data["schemaVersion"]) is not int or data["schemaVersion"] != REPOSITORY_POLICY_SCHEMA_VERSION:
+        return _invalid_repository_policy(
+            f"Repository policy schemaVersion must be {REPOSITORY_POLICY_SCHEMA_VERSION}."
+        )
+
+    raw_declarations = data["allowedJsonPaths"]
+    if not isinstance(raw_declarations, list) or len(raw_declarations) > REPOSITORY_POLICY_MAX_DECLARATIONS:
+        return _invalid_repository_policy(
+            f"allowedJsonPaths must be a list of at most {REPOSITORY_POLICY_MAX_DECLARATIONS} declarations."
+        )
+    declarations = []
+    seen_paths = set()
+    for item in raw_declarations:
+        if not isinstance(item, dict) or set(item) - {"path", "kind"}:
+            return _invalid_repository_policy("Each allowedJsonPaths item must contain only path and kind.")
+        path_value = item.get("path")
+        kind = item.get("kind", "config-object")
+        if not isinstance(path_value, str) or not isinstance(kind, str):
+            return _invalid_repository_policy("Repository JSON declaration path and kind must be strings.")
+        normalized = normalized_repo_path(path_value)
+        if (
+            not normalized
+            or normalized != path_value
+            or normalized.startswith((".", "/"))
+            or "\\" in path_value
+            or "/../" in normalized
+            or normalized.endswith(("/..", "/."))
+            or not normalized.endswith(".json")
+            or Path(normalized).name == "package-lock.json"
+        ):
+            return _invalid_repository_policy(
+                "Repository JSON declaration paths must be normalized repository-relative .json paths."
+            )
+        if kind not in REPOSITORY_JSON_DECLARATION_KINDS:
+            return _invalid_repository_policy(
+                f"Repository JSON declaration kind must be one of {sorted(REPOSITORY_JSON_DECLARATION_KINDS)}."
+            )
+        if normalized in seen_paths:
+            return _invalid_repository_policy("Repository JSON declaration paths must be unique.")
+        seen_paths.add(normalized)
+        declarations.append(RepositoryJsonDeclaration(path=normalized, kind=kind))
+
+    raw_domains = data["publicReferenceDomains"]
+    if not isinstance(raw_domains, list) or len(raw_domains) > REPOSITORY_POLICY_MAX_DOMAINS:
+        return _invalid_repository_policy(
+            f"publicReferenceDomains must be a list of at most {REPOSITORY_POLICY_MAX_DOMAINS} domains."
+        )
+    domains = set()
+    domain_pattern = re.compile(
+        DNS_LABEL_PATTERN + r"(?:\." + DNS_LABEL_PATTERN + r")+"
+    )
+    for domain_value in raw_domains:
+        if not isinstance(domain_value, str):
+            return _invalid_repository_policy("publicReferenceDomains entries must be strings.")
+        domain = domain_value.lower().strip(".")
+        if (
+            not domain_pattern.fullmatch(domain)
+            or domain.endswith((".local", ".internal", ".test", ".invalid"))
+            or domain == "example.com"
+            or domain.startswith("example.")
+        ):
+            return _invalid_repository_policy(
+                "publicReferenceDomains entries must be public DNS names, not local, internal, or example domains."
+            )
+        domains.add(domain)
+
+    return RepositoryPolicy(
+        schema_version=REPOSITORY_POLICY_SCHEMA_VERSION,
+        declarations=tuple(declarations),
+        public_reference_domains=frozenset(domains),
+    ), None
+
+
+def load_repository_policy(repo_root, profile=None):
+    path = Path(repo_root) / REPOSITORY_POLICY_PATH
+    if not path.is_file():
+        return RepositoryPolicy(), None
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        return RepositoryPolicy(), f"Unable to read repository policy: {exc.__class__.__name__}"
+    policy, error = parse_repository_policy(raw)
+    if error is not None:
+        return RepositoryPolicy(), error
+    return policy, None
+
 def value_fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8", "replace")).hexdigest()[:16]
 
@@ -960,9 +1152,22 @@ def is_synthetic_test_or_fixture_path(relative_path: str | Path) -> bool:
 def should_scan_text_rule(rule_id: str, relative_path: str | Path) -> bool:
     if is_dependency_lockfile_path(relative_path):
         return rule_id in LOCKFILE_SECRET_RULES
-    if is_synthetic_test_or_fixture_path(relative_path) and rule_id in SYNTHETIC_TEST_NOISE_RULES:
-        return False
     return True
+
+
+def effective_text_rule_severity(rule_id: str, relative_path: str | Path) -> str:
+    """Return blocking severity for hard rules and advisory warnings for
+    context-sensitive hits in synthetic test/fixture or documentation paths."""
+    if rule_id not in CONTEXT_SENSITIVE_TEXT_RULES:
+        return "high-risk"
+    if is_synthetic_test_or_fixture_path(relative_path):
+        return "warning"
+    if (
+        rule_id in DOCUMENTATION_REFERENCE_TEXT_RULES
+        and is_public_reference_path(relative_path)
+    ):
+        return "warning"
+    return "high-risk"
 
 
 def file_policy_fingerprint(relative_path: str, rule_id: str, raw: bytes = b"") -> str:
@@ -970,13 +1175,25 @@ def file_policy_fingerprint(relative_path: str, rule_id: str, raw: bytes = b"") 
     return hashlib.sha256(payload).hexdigest()[:16]
 
 
-def is_allowed_json_config_path(relative_path: str, policy: ProjectPolicy | None = None) -> bool:
+def is_repository_policy_path(relative_path: str | Path) -> bool:
+    return str(relative_path).replace("\\", "/").strip("/").lower() == REPOSITORY_POLICY_PATH
+
+
+def is_allowed_json_config_path(
+    relative_path: str,
+    policy: ProjectPolicy | None = None,
+    repository_policy: RepositoryPolicy | None = None,
+) -> bool:
+    if is_repository_policy_path(relative_path):
+        return True
     selected = policy or PROJECT_POLICIES["common"]
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
     if name in selected.allowed_json_file_names:
         return True
     if normalized in selected.allowed_json_paths:
+        return True
+    if repository_policy is not None and repository_policy.declaration_for(normalized) is not None:
         return True
     if any(re.fullmatch(pattern, normalized) for pattern in selected.allowed_json_path_patterns):
         return True
@@ -1243,10 +1460,48 @@ def is_verified_historical_template_successor(
     )
 
 
-def is_allowed_json_config_shape(relative_path: str, data: object, policy: ProjectPolicy | None = None) -> bool:
+def matches_repository_json_declaration(
+    data: object,
+    declaration: RepositoryJsonDeclaration,
+) -> bool:
+    if declaration.kind == "string-array":
+        return isinstance(data, list) and len(data) <= 1000 and all(
+            isinstance(value, str) and bool(value.strip()) for value in data
+        )
+    if declaration.kind == "string-map":
+        return (
+            isinstance(data, dict)
+            and len(data) <= 1000
+            and all(
+                isinstance(key, str) and isinstance(value, str)
+                for key, value in data.items()
+            )
+        )
+    if declaration.kind == "config-object":
+        return isinstance(data, dict)
+    return isinstance(data, (dict, list))
+
+
+def is_allowed_json_config_shape(
+    relative_path: str,
+    data: object,
+    policy: ProjectPolicy | None = None,
+    repository_policy: RepositoryPolicy | None = None,
+) -> bool:
+    if is_repository_policy_path(relative_path):
+        return (
+            isinstance(data, dict)
+            and {str(key) for key in data}
+            == {"schemaVersion", "allowedJsonPaths", "publicReferenceDomains"}
+            and data.get("schemaVersion") == REPOSITORY_POLICY_SCHEMA_VERSION
+        )
     selected = policy or PROJECT_POLICIES["common"]
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
+    if repository_policy is not None:
+        declaration = repository_policy.declaration_for(normalized)
+        if declaration is not None:
+            return matches_repository_json_declaration(data, declaration)
     if selected.policy_id == "skills" and SKILLS_CANONICAL_CONFIG_PATH_PATTERN.fullmatch(normalized):
         return is_skills_canonical_config_shape(data)
     if not isinstance(data, dict):
@@ -1333,15 +1588,25 @@ def is_allowed_json_config_shape(relative_path: str, data: object, policy: Proje
     return False
 
 
-def file_policy_violations(relative_path: str, raw: bytes, profile: str | None = None) -> list[tuple[str, str, str, str]]:
+def file_policy_violations(
+    relative_path: str,
+    raw: bytes,
+    profile: str | None = None,
+    repository_policy: RepositoryPolicy | None = None,
+) -> list[tuple[str, str, str, str]]:
     policy = policy_for_profile(profile)
-    normalized = normalized_repo_path(relative_path)
-    suffix = Path(normalized).suffix.lower()
     findings: list[tuple[str, str, str, str]] = []
 
     def add(rule_id: str, message: str, evidence_class: str) -> None:
         findings.append((rule_id, message, evidence_class, file_policy_fingerprint(normalized, rule_id, raw)))
 
+    if is_repository_policy_path(relative_path):
+        # The policy file is parsed by load_repository_policy and reported as
+        # repository-policy-invalid when malformed; do not also run it through
+        # the ordinary JSON configuration gate.
+        return findings
+    normalized = normalized_repo_path(relative_path)
+    suffix = Path(normalized).suffix.lower()
     if suffix in BINARY_DATA_FILE_EXTENSIONS:
         add(
             "database-or-binary-data-file",
@@ -1361,7 +1626,7 @@ def file_policy_violations(relative_path: str, raw: bytes, profile: str | None =
     if suffix != ".json":
         return findings
 
-    if not is_allowed_json_config_path(normalized, policy):
+    if not is_allowed_json_config_path(normalized, policy, repository_policy):
         add(
             "json-data-file-not-allowlisted",
             f"JSON files are denied by default under the {policy.policy_id} policy unless they are approved project configuration, registry, manifest, or template files.",
@@ -1386,7 +1651,7 @@ def file_policy_violations(relative_path: str, raw: bytes, profile: str | None =
             "user-data",
         )
 
-    if not is_allowed_json_config_shape(normalized, data, policy):
+    if not is_allowed_json_config_shape(normalized, data, policy, repository_policy):
         add(
             "json-config-shape-invalid",
             f"Allowlisted JSON files must match the expected {policy.policy_id} project configuration or registry object shape.",
@@ -1599,6 +1864,18 @@ def is_non_loopback_ipv6(value: str, relative_path: str) -> bool:
 
 def is_non_synthetic_licoup_developer_path(_value: str, relative_path: str) -> bool:
     return normalized_repo_path(relative_path) not in LICOUP_SYNTHETIC_DEVELOPER_PATHS
+
+
+def is_declared_public_reference_host(
+    host: str,
+    relative_path: str,
+    repository_policy: RepositoryPolicy | None,
+) -> bool:
+    if repository_policy is None or not repository_policy.public_reference_domains:
+        return False
+    if is_operational_path(relative_path):
+        return False
+    return repository_policy.allows_public_reference_host(host)
 
 
 def is_disallowed_domain(value: str, relative_path: str) -> bool:

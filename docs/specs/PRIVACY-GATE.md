@@ -1,10 +1,9 @@
 # Lico-Auditor Privacy Gate
 
 `lico-auditor` is the external audit gate for governed LicoUp, BadTower, and
-Fabrigent repositories. The audit repository is governed by a
-single `only` branch. All
-Actions must run the latest `only` HEAD and fail if any other audit branch is
-reachable.
+Fabrigent repositories. The audit repository is governed by a single `only`
+branch. Actions must run the latest `only` HEAD; temporary Auditor pull-request
+branches are allowed for maintenance and do not affect target gates.
 The current governed targets cover LicoUp; BadTower; Fabrigent; the retained independent `LicoArc-Plugins`
 marketplace; developer and organization governance; and official website
 repositories.
@@ -77,8 +76,52 @@ history, or GitHub surfaces expose:
   meaningful prefix such as `feature` or `fix`; the GitHub ruleset applies the
   same restriction before remote branch creation or update.
 
-Any `high-risk` or `error` finding fails the gate. There is no warning-only
-mode for release gates.
+## Severity model
+
+Only `error` and `high-risk` findings fail the gate. `warning` and `info`
+findings are advisory, appear in reports, and do not block normal commits or
+promotion.
+
+Hard leak rules are never downgraded: private keys, credential URLs,
+authorization headers, JWTs, cloud or chat tokens, secret assignments,
+committed SSH public key material, user-record-shaped JSON, and data export
+files always fail.
+
+Context-sensitive rules are heuristic outside their owning context and become
+warnings instead of blockers in synthetic test and fixture paths. IP and
+domain references in documentation material also become warnings. The same
+hit in a source endpoint, deployment file, or operational script remains
+`high-risk`.
+
+Historical JSON that no longer exists at the scanned head and contains no
+user-record or secret signal is reported as a warning; retired user-record,
+secret, and data-export history remains blocking.
+
+## Repository-owned policy declaration
+
+A target repository may own small, bounded admissions without waiting for a
+Lico-Auditor release by tracking `.lico-auditor/policy.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "allowedJsonPaths": [
+    {"path": "tools/example/owned.json", "kind": "config-object"}
+  ],
+  "publicReferenceDomains": ["docs.vendor.contoso.com"]
+}
+```
+
+- `allowedJsonPaths` admits exact repository-relative `.json` paths and
+  requires one of `config-object`, `json`, `string-array`, or `string-map`.
+- The declaration can never admit package lockfiles, data-export files,
+  user/customer/contact record-shaped data, or secret material. Those checks
+  continue to run before and after declaration admission.
+- `publicReferenceDomains` applies only outside deployment/operational paths;
+  internal, local, reserved, and example domains are rejected.
+- The declaration file itself is strict JSON and must have exactly the shape
+  above. An invalid declaration emits `repository-policy-invalid` and fails
+  closed.
 
 ## GitHub Enforcement
 
@@ -93,8 +136,10 @@ names. Governed repositories must therefore call
 `.github/workflows/contribution-governance.yml` and require its
 `contribution-governance` job in the branch ruleset. The reusable workflow
 checks the pull request or push commit range and current candidate tree with
-the canonical `only` version of Lico-Auditor. The independent scheduled audit
-continues to inspect complete reachable history without a legacy baseline.
+the canonical `only` version of Lico-Auditor. The independent scheduled audit continues to inspect complete reachable
+history by passing `--full-history`; ordinary CI gates that pass `--history`
+without `--full-history` scan only paths introduced by each commit in the
+selected range.
 
 ## Documentation Governance
 

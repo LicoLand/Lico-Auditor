@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Any
 
 
+BLOCKING_SEVERITIES = frozenset({"error", "high-risk"})
+ADVISORY_SEVERITIES = frozenset({"warning", "info"})
+
+
 @dataclass(frozen=True)
 class Finding:
     severity: str
@@ -46,7 +50,7 @@ class AuditReport:
 
     @property
     def failed(self) -> bool:
-        return any(item.severity in {"high-risk", "error"} for item in self.findings)
+        return any(item.severity in BLOCKING_SEVERITIES for item in self.findings)
 
     def summary(self) -> dict[str, Any]:
         by_severity: dict[str, int] = {}
@@ -54,8 +58,11 @@ class AuditReport:
         for finding in self.findings:
             by_severity[finding.severity] = by_severity.get(finding.severity, 0) + 1
             by_rule[finding.rule] = by_rule.get(finding.rule, 0) + 1
+        status = "failed" if self.failed else (
+            "passed_with_warnings" if self.findings else "passed"
+        )
         return {
-            "status": "failed" if self.failed else "passed",
+            "status": status,
             "finding_count": len(self.findings),
             "by_severity": by_severity,
             "by_rule": by_rule,
