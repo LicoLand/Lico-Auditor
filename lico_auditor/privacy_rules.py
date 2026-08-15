@@ -277,6 +277,7 @@ def _join(parts: Iterable[str]) -> str:
 
 MACOS_HOME_PREFIX = _join(["/", "Users", "/"])
 LINUX_HOME_PREFIX = _join(["/", "home", "/"])
+LINUXBREW_SYSTEM_HOME = _join(["linuxbrew", "/", ".linuxbrew"])
 ASCII_ACCOUNT_NAME_PATTERN = r"[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_$-])?"
 PATH_COMPONENT_TERMINATOR_PATTERN = r"(?=[/\\\s`'\"),;:\]}>!?]|$)"
 GITHUB_LICOUP_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoUp.git"])
@@ -2274,7 +2275,11 @@ RULES = [
         "ip-literal",
         "high-risk",
         "IP literals are not allowed in public source; use localhost, 0.0.0.0, 127.0.0.1, or an allowed LicoLand domain.",
-        re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b"),
+        re.compile(
+            r"(?<![A-Za-z0-9_.-])"
+            r"(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}"
+            r"(?![A-Za-z0-9_.-])"
+        ),
         "network-location",
         is_non_loopback_ipv4,
     ),
@@ -2368,6 +2373,10 @@ RULES = [
         "Developer Linux home paths must not be reachable in public history.",
         re.compile(
             re.escape(LINUX_HOME_PREFIX)
+            + "(?!"
+            + re.escape(LINUXBREW_SYSTEM_HOME)
+            + PATH_COMPONENT_TERMINATOR_PATTERN
+            + ")"
             + ASCII_ACCOUNT_NAME_PATTERN
             + PATH_COMPONENT_TERMINATOR_PATTERN
         ),

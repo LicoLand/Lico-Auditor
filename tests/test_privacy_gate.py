@@ -198,6 +198,13 @@ class PrivacyGateTests(unittest.TestCase):
         findings = scan_text("fixture.txt", f"{public_ipv4()} {private_ipv4()} {documentation_ipv4()} {public_ipv6()}")
         self.assertEqual([item.rule for item in findings], ["ip-literal", "ip-literal", "ip-literal", "ip-literal"])
 
+    def test_dotted_certificate_oid_is_not_an_ip_literal(self) -> None:
+        certificate_oid = ".".join(["1", "2", "840", "113635", "100", "6", "1", "13"])
+        self.assertEqual(
+            scan_text("tests/test_signing_policy.py", f"certificate_oid={certificate_oid}"),
+            [],
+        )
+
     def test_public_github_pages_dns_records_are_allowed_only_at_the_canonical_path(self) -> None:
         records = f"example.test. IN A {public_ipv4()}\nexample.test. IN AAAA {public_ipv6()}"
         self.assertEqual(scan_text("dns/cloudflare-github-pages.txt", records), [])
@@ -445,6 +452,20 @@ class PrivacyGateTests(unittest.TestCase):
                     [item.rule for item in scan_text("README.md", f"path={path}")],
                     [rule],
                 )
+
+    def test_linuxbrew_system_prefix_is_not_a_developer_home_path(self) -> None:
+        system_prefix = linux_home_path("linuxbrew/.linuxbrew/Cellar")
+        self.assertEqual(scan_text("src/package_roots.rs", f"path={system_prefix}"), [])
+        self.assertEqual(
+            [
+                item.rule
+                for item in scan_text(
+                    "src/package_roots.rs",
+                    f"path={linux_home_path('linuxbrew/private')}",
+                )
+            ],
+            ["developer-linux-home-path"],
+        )
 
     def test_real_home_path_usernames_with_placeholder_tails_still_fail(self) -> None:
         expected = (
