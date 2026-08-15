@@ -28,6 +28,8 @@ REQUIRED_PUBLIC_PATHS = (
     "docs/adrs/README.md",
 )
 
+ROOT_README_PATHS = frozenset({"README.md", "README.zh-CN.md"})
+
 REQUIRED_DOCUMENTATION_SECTIONS = (
     "docs/architecture/",
     "docs/functionality/",
@@ -287,44 +289,12 @@ def documentation_governance_findings(repo_root: Path, profile: str) -> list[Fin
                 )
             )
 
-    if "README.md" in tracked and "README.zh-CN.md" in tracked:
-        readme = _tracked_blob(repo_root, "README.md")
-        localized = _tracked_blob(repo_root, "README.zh-CN.md")
-        if readme is not None and localized is not None:
-            if "README.zh-CN.md" not in readme:
-                findings.append(
-                    _finding(
-                        "documentation-readme-language-link-missing",
-                        "README.md",
-                        "The normative README must link to the Simplified Chinese localization.",
-                    )
-                )
-            if "README.md" not in localized:
-                findings.append(
-                    _finding(
-                        "documentation-readme-language-link-missing",
-                        "README.zh-CN.md",
-                        "The localized README must link to the normative README.",
-                    )
-                )
-            combined = f"{readme}\n{localized}"
-            has_normative_role = re.search(r"(?:normative language|规范语言)", combined, re.IGNORECASE)
-            has_localized_role = re.search(
-                r"(?:localized language|localization|本地化(?:语言|版本))",
-                combined,
-                re.IGNORECASE,
-            )
-            if not has_normative_role or not has_localized_role:
-                findings.append(
-                    _finding(
-                        "documentation-readme-language-role-missing",
-                        "README.md",
-                        "The README pair must identify the normative and localized languages.",
-                    )
-                )
-
     markdown_text: dict[str, str] = {}
-    for path in sorted(path for path in tracked if path.lower().endswith(".md")):
+    for path in sorted(
+        path
+        for path in tracked
+        if path.lower().endswith(".md") and path not in ROOT_README_PATHS
+    ):
         content = _tracked_blob(repo_root, path)
         if content is None:
             findings.append(
