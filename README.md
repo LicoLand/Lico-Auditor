@@ -126,8 +126,8 @@ names to the correct profile.
 - tracked documentation governance for the `licoup`, `badtower`, and
   `fabrigent` profiles:
   required public entry points, approved formal-document categories, bilingual
-  README mapping, index and link integrity, module READMEs, generated-source
-  metadata, and local-only asset boundaries;
+  README mapping, index and link integrity, generated-source metadata, and
+  local-only asset boundaries;
 
 Only `error` and `high-risk` findings exit non-zero. `warning` and `info`
 findings are advisory: they are reported but do not block normal commits or

@@ -49,12 +49,7 @@ or live under `architecture/`, `functionality/`, `protocols/`, `examples/`, or
   `docs/` or module documentation must resolve to a tracked file or tracked
   directory. Root README files are excluded from this content check.
 
-## Modules and generated projections
-
-A direct child of `apps/`, `packages/`, `crates/`, or `modules/` is treated as
-an independently maintained module when it owns a recognized package or module
-manifest. A direct child of `plugins/` is treated the same way when it owns
-`plugin.json`. Such a module must have a tracked `README.md`.
+## Generated projections
 
 A Markdown file whose name ends in `.generated.md`, or whose content declares
 that it is generated, must identify both its canonical generation source and
@@ -93,7 +88,6 @@ The documentation gate emits fixed, redacted findings:
 - `documentation-local-asset-tracked`
 - `documentation-local-asset-not-ignored`
 - `documentation-external-skill-tracked`
-- `documentation-module-readme-missing`
 - `documentation-index-entry-missing`
 - `documentation-link-target-missing`
 - `documentation-generated-source-missing`

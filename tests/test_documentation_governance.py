@@ -115,7 +115,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
         self.assertIn("documentation-local-asset-not-ignored", rules(findings))
         self.assertIn("documentation-local-asset-tracked", rules(findings))
 
-    def test_manifest_owned_module_requires_readme(self) -> None:
+    def test_manifest_owned_module_does_not_require_readme(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             create_governed_repository(root)
@@ -124,7 +124,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             manifest.write_text('{"name":"example","version":"1.0.0"}', encoding="utf-8")
             run_git(root, "add", "packages/example/package.json")
             findings = scan_worktree(root, profile="fabrigent")
-        self.assertIn("documentation-module-readme-missing", rules(findings))
+        self.assertNotIn("documentation-module-readme-missing", rules(findings))
 
     def test_root_readmes_do_not_require_links_or_language_roles(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
