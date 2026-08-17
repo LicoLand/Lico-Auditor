@@ -183,6 +183,21 @@ def _markdown_targets(source_path: str, text: str) -> set[str]:
     return targets
 
 
+def _markdown_links_to(text: str, target_path: str) -> bool:
+    for match in MARKDOWN_LINK_PATTERN.finditer(text):
+        if match.group(0).startswith("!"):
+            continue
+        target = match.group(1).strip()
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1].strip()
+        else:
+            target = target.split(maxsplit=1)[0]
+        target = unquote(target.split("#", 1)[0].split("?", 1)[0]).rstrip("/")
+        if target == target_path or target.endswith(f"/{target_path}"):
+            return True
+    return False
+
+
 def documentation_governance_findings(repo_root: Path, profile: str) -> list[Finding]:
     if profile not in GOVERNED_DOCUMENTATION_PROFILES or not _is_git_worktree(repo_root):
         return []
@@ -207,6 +222,25 @@ def documentation_governance_findings(repo_root: Path, profile: str) -> list[Fin
                     "documentation-required-path-missing",
                     path,
                     "A required public documentation entry point is missing from the tracked candidate.",
+                )
+            )
+
+    readme_pairs = (
+        ("README.md", "README.zh-CN.md"),
+        ("README.zh-CN.md", "README.md"),
+    )
+    for source_path, target_path in readme_pairs:
+        if source_path not in tracked or target_path not in tracked:
+            continue
+        content = _tracked_blob(repo_root, source_path)
+        if content is None:
+            continue
+        if not _markdown_links_to(content, target_path):
+            findings.append(
+                _finding(
+                    "documentation-readme-cross-link-missing",
+                    source_path,
+                    "The paired root README must link to its counterpart.",
                 )
             )
 
