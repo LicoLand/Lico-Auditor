@@ -41,8 +41,9 @@ or live under `architecture/`, `functionality/`, `protocols/`, `examples/`, or
 ## README boundary, index, and link integrity
 
 - `README.md` and `README.zh-CN.md` must remain tracked root entry points.
-  README wording, language roles, links, formatting, and product claims are
-  author-owned and are not documentation-governance checks.
+- The two root README files must link to each other. Their wording, formatting,
+  and product claims remain author-owned and are not documentation-governance
+  checks.
 - Every formal Markdown document must be linked directly from
   `docs/README.md`.
 - Every relative Markdown link or image target in governed documentation below
@@ -74,9 +75,9 @@ scenario, or generated directories. Executable public JSON examples belong
 under `docs/examples/` and remain subject to the existing configuration-shape
 and privacy checks.
 
-LicoUp's normative current-status document and its Simplified Chinese sibling
-are formal root documents under `docs/`. They remain indexed from the public
-documentation entry point and are governed like the other formal root files.
+LicoUp's English and Simplified Chinese current-status documents are formal
+root documents under `docs/`. They remain indexed from the public documentation
+entry point and are governed like the other formal root files.
 
 ## Finding rules
 
@@ -84,6 +85,7 @@ The documentation gate emits fixed, redacted findings:
 
 - `documentation-required-path-missing`
 - `documentation-required-section-missing`
+- `documentation-readme-cross-link-missing`
 - `documentation-formal-path-invalid`
 - `documentation-local-asset-tracked`
 - `documentation-local-asset-not-ignored`

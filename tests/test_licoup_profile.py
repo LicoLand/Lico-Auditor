@@ -365,13 +365,10 @@ class LicoupDocumentationGovernanceTests(unittest.TestCase):
                 root,
                 {
                     "README.md": (
-                        "# Example\n\nEnglish is the normative language. "
-                        "Simplified Chinese is the localized language.\n\n"
-                        "[简体中文](README.zh-CN.md)\n"
+                        "# Example\n\n[简体中文](README.zh-CN.md)\n"
                     ),
                     "README.zh-CN.md": (
-                        "# 示例\n\n英语是规范语言，简体中文是本地化语言。\n\n"
-                        "[English](README.md)\n"
+                        "# 示例\n\n[English](README.md)\n"
                     ),
                     "PRODUCT.md": "# Product\n",
                     "CONTRIBUTING.md": "# Contributing\n",

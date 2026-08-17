@@ -10,12 +10,10 @@ from lico_auditor.scanner import scan_worktree
 
 REQUIRED_CONTENT = {
     "README.md": (
-        "# Example\n\nEnglish is the normative language. Simplified Chinese is the localized language.\n\n"
-        "[简体中文](README.zh-CN.md)\n"
+        "# Example\n\n[简体中文](README.zh-CN.md)\n"
     ),
     "README.zh-CN.md": (
-        "# 示例\n\n英语是规范语言，简体中文是本地化语言。\n\n"
-        "[English](README.md)\n"
+        "# 示例\n\n[English](README.md)\n"
     ),
     "PRODUCT.md": "# Product\n",
     "CONTRIBUTING.md": "# Contributing\n",
@@ -126,7 +124,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             findings = scan_worktree(root, profile="fabrigent")
         self.assertNotIn("documentation-module-readme-missing", rules(findings))
 
-    def test_root_readmes_do_not_require_links_or_language_roles(self) -> None:
+    def test_root_readmes_must_cross_link(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             create_governed_repository(root)
@@ -134,7 +132,34 @@ class DocumentationGovernanceTests(unittest.TestCase):
             (root / "README.zh-CN.md").write_text("# 示例\n", encoding="utf-8")
             run_git(root, "add", "README.md", "README.zh-CN.md")
             findings = scan_worktree(root, profile="licoup")
-        self.assertEqual(findings, [])
+        missing_links = [
+            item
+            for item in findings
+            if item.rule == "documentation-readme-cross-link-missing"
+        ]
+        self.assertEqual(
+            {item.path for item in missing_links},
+            {"README.md", "README.zh-CN.md"},
+        )
+
+    def test_root_readmes_accept_neutral_absolute_cross_links(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            create_governed_repository(root)
+            (root / "README.md").write_text(
+                "# Example\n\n[简体中文](https://example.invalid/project/README.zh-CN.md)\n",
+                encoding="utf-8",
+            )
+            (root / "README.zh-CN.md").write_text(
+                "# 示例\n\n[English](https://example.invalid/project/README.md)\n",
+                encoding="utf-8",
+            )
+            run_git(root, "add", "README.md", "README.zh-CN.md")
+            findings = scan_worktree(root, profile="licoup")
+        self.assertNotIn(
+            "documentation-readme-cross-link-missing",
+            rules(findings),
+        )
 
     def test_root_readmes_remain_required_public_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
