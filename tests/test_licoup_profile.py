@@ -46,6 +46,7 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
                     "schemas/client_bridge/manifest.json": '{"families":[],"version":"1"}',
                     "schemas/client_bridge/state.json": '{"operations":[],"version":"1"}',
                     "tools/client-cli-vm-matrix.json": '{"architecture":"arm64","description":"synthetic","schemaVersion":"1","distros":[]}',
+                    "tools/apple-release/macos-direct-arm64.json": '{"schema":"apple-release.config.v1","source":{},"version":{},"gates":[],"build":{},"apple":{},"github":{},"artifacts":[]}',
                     "tools/client-release-targets.json": '{"schemaVersion":"1","targets":[]}',
                     "tools/client-support-matrix.json": '{"defaults":{},"services":[],"targets":[]}',
                     "tools/client-version.json": '{"buildNumber":"1","productVersion":"0.0.1","schemaVersion":"1"}',
@@ -66,6 +67,18 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
             self.assertEqual(
                 rules(scan_worktree(root, profile="licoup")),
                 ["json-data-file-not-allowlisted"],
+            )
+
+    def test_licoup_profile_rejects_invalid_apple_release_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_fixtures(
+                root,
+                {"tools/apple-release/macos-direct-arm64.json": '{"rows":[]}'},
+            )
+            self.assertEqual(
+                rules(scan_worktree(root, profile="licoup")),
+                ["json-config-shape-invalid"],
             )
 
     def test_licoup_profile_still_rejects_unlisted_data_json(self) -> None:

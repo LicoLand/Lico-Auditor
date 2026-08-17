@@ -875,6 +875,7 @@ LICOUP_JSON_PATH_PATTERNS = (
     r"plugins/[^/]+/mcp/server\.json",
     r"schemas/client_bridge/[^/]+\.json",
     r"tools/android-release-toolchain\.json",
+    r"tools/apple-release/[^/]+\.json",
     r"tools/client-[^/]+\.json",
     r"tools/licoup-[^/]+\.json",
     r"tools/scripts/[^/]+/probes\.json",
@@ -1537,6 +1538,17 @@ def is_allowed_json_config_shape(
     if name in {"mcp.json", ".mcp.json"}:
         return "mcpServers" in keys
     if selected.policy_id == "licoup":
+        if re.fullmatch(r"tools/apple-release/[^/]+\.json", normalized):
+            return (
+                data.get("schema") == "apple-release.config.v1"
+                and isinstance(data.get("source"), dict)
+                and isinstance(data.get("version"), dict)
+                and isinstance(data.get("gates"), list)
+                and isinstance(data.get("build"), dict)
+                and isinstance(data.get("apple"), dict)
+                and isinstance(data.get("github"), dict)
+                and isinstance(data.get("artifacts"), list)
+            )
         if normalized == "apps/desktop/test/layout/profiles/studio/mobile/studio_mobile_sha256_manifest.json":
             return keys == {"algorithm", "goldens", "normalization", "source"}
         if normalized == "vscode/settings.json":
