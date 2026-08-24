@@ -874,6 +874,7 @@ LICOUP_JSON_PATH_PATTERNS = (
     r"packages/contracts/client/fixtures/.+\.json",
     r"plugins/[^/]+/mcp/server\.json",
     r"schemas/client_bridge/[^/]+\.json",
+    r"schemas/conversation_protocol/[^/]+\.json",
     r"tools/android-release-toolchain\.json",
     r"tools/apple-release/[^/]+\.json",
     r"tools/client-[^/]+\.json",
