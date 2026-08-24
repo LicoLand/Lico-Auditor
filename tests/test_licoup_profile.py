@@ -45,6 +45,8 @@ class LicoupProfileJsonAllowlistTests(unittest.TestCase):
                     "plugins/lico-up-codex/mcp/server.json": '{"mcpServers":{}}',
                     "schemas/client_bridge/manifest.json": '{"families":[],"version":"1"}',
                     "schemas/client_bridge/state.json": '{"operations":[],"version":"1"}',
+                    "schemas/conversation_protocol/manifest.json": '{"families":[],"version":"1"}',
+                    "schemas/conversation_protocol/conversation_protocol.schema.json": '{"methods":[],"title":"synthetic","version":"1"}',
                     "tools/client-cli-vm-matrix.json": '{"architecture":"arm64","description":"synthetic","schemaVersion":"1","distros":[]}',
                     "tools/apple-release/macos-direct-arm64.json": '{"schema":"apple-release.config.v1","source":{},"version":{},"gates":[],"build":{},"apple":{},"github":{},"artifacts":[]}',
                     "tools/client-release-targets.json": '{"schemaVersion":"1","targets":[]}',
