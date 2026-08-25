@@ -369,6 +369,28 @@ class LicoupDocumentationGovernanceTests(unittest.TestCase):
                 {item.rule for item in findings},
             )
 
+    def test_licoup_parallel_documents_are_formal_paths(self) -> None:
+        import subprocess
+
+        from lico_auditor.documentation_rules import documentation_governance_findings
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_fixtures(
+                root,
+                {
+                    "docs/parallel/PARALLEL-DEVELOPMENT-MAP.md": "# Parallel map\n",
+                    "docs/parallel/PARALLEL-DEVELOPMENT-MAP.zh-CN.md": "# 并行开发地图\n",
+                },
+            )
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True)
+            findings = documentation_governance_findings(root, "licoup")
+            self.assertNotIn(
+                "documentation-formal-path-invalid",
+                {item.rule for item in findings},
+            )
+
     def test_localized_formal_sibling_is_a_valid_formal_path(self) -> None:
         import subprocess
 
