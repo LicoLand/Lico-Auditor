@@ -181,6 +181,22 @@ class LicoupDomainPolicyTests(unittest.TestCase):
                     [],
                 )
 
+    def test_provider_quota_public_origins_are_scoped_to_the_domain(self) -> None:
+        line = 'endpoint = "https://api.kimi.com/v1/usages"'
+        provider_quota_path = (
+            "crates/licoup-native/src/domain/provider_quota/provider.rs"
+        )
+        self.assertEqual(scan_text(provider_quota_path, line), [])
+        self.assertEqual(
+            rules(
+                scan_text(
+                    "crates/licoup-native/src/domain/unrelated.rs",
+                    line,
+                )
+            ),
+            ["disallowed-domain"],
+        )
+
     def test_dotted_code_status_and_conversion_calls_are_not_hosts(self) -> None:
         self.assertEqual(
             scan_text("crates/licoup-native/src/example.rs", "host = host.to_string();"),
