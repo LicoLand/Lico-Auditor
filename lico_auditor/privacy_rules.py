@@ -575,6 +575,14 @@ LICOUP_HISTORICAL_PUBLIC_HOST_PATHS = {
         }
     ),
 }
+LICOUP_PROVIDER_QUOTA_PUBLIC_HOSTS = frozenset(
+    {
+        "api.kimi.com",
+    }
+)
+LICOUP_PROVIDER_QUOTA_PATH_PREFIX = (
+    "crates/licoup-native/src/domain/provider_quota/"
+)
 LICOUP_SYNTHETIC_DEVELOPER_PATHS = frozenset(
     {
         "apps/desktop/test/group_conversation_session_binding_test.dart",
@@ -1801,7 +1809,10 @@ def is_public_reference_host(host: str, relative_path: str) -> bool:
     ) or is_public_package_reference_host(normalized, relative_path) or is_public_integration_reference_host(
         normalized,
         relative_path,
-    ) or is_licoup_historical_public_host(normalized, relative_path)
+    ) or is_licoup_historical_public_host(
+        normalized,
+        relative_path,
+    ) or is_licoup_provider_quota_public_host(normalized, relative_path)
 
 
 def is_licoup_historical_public_host(host: str, relative_path: str) -> bool:
@@ -1813,6 +1824,15 @@ def is_licoup_historical_public_host(host: str, relative_path: str) -> bool:
     ):
         return True
     return normalized_path in LICOUP_HISTORICAL_PUBLIC_HOST_PATHS.get(host, ())
+
+
+def is_licoup_provider_quota_public_host(host: str, relative_path: str) -> bool:
+    return (
+        host in LICOUP_PROVIDER_QUOTA_PUBLIC_HOSTS
+        and normalized_repo_path(relative_path).startswith(
+            LICOUP_PROVIDER_QUOTA_PATH_PREFIX
+        )
+    )
 
 
 def is_local_development_domain(host: str, relative_path: str) -> bool:
