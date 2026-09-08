@@ -125,6 +125,11 @@ class RepositoryPolicyTests(unittest.TestCase):
                 "https://docs.vendor.contoso.com/guide",
                 encoding="utf-8",
             )
+            (root / "src").mkdir()
+            (root / "src" / "lib.rs").write_text(
+                "//! Reference: https://docs.vendor.contoso.com/guide\n",
+                encoding="utf-8",
+            )
             findings = scan_worktree(root, profile="common")
             self.assertEqual(findings, [])
 

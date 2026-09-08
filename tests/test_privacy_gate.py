@@ -242,11 +242,27 @@ class PrivacyGateTests(unittest.TestCase):
     def test_dotted_code_identifiers_are_not_domains(self) -> None:
         text = "server = http.createServer(); baseUrl = settings.baseUrl; value = process.argv"
         self.assertEqual(scan_text("src/app.mjs", text), [])
+        for expression in (
+            "service.continuity().cloned().unwrap()",
+            "reopened.continuity().cloned().unwrap()",
+            "service.continuity ().cloned().unwrap()",
+        ):
+            with self.subTest(expression=expression):
+                self.assertEqual(scan_text("src/service.rs", f"let host = {expression};"), [])
 
     def test_bare_external_host_assignments_still_fail(self) -> None:
-        findings = scan_text("settings.env", f"host=api.{disallowed_domain()}")
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0].rule, "disallowed-domain")
+        host = f"api.{disallowed_domain()}"
+        for text in (
+            f"host={host}",
+            f"host={host}:8443",
+            f'host="{host}"',
+            f"url={host}/api",
+            f"host={host}:${{PORT}}",
+        ):
+            with self.subTest(text=text):
+                findings = scan_text("settings.env", text)
+                self.assertEqual(len(findings), 1)
+                self.assertEqual(findings[0].rule, "disallowed-domain")
 
     def test_reserved_synthetic_domains_pass(self) -> None:
         text = "url=https://api.example.test endpoint=https://service.example.com"
