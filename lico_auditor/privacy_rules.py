@@ -617,6 +617,7 @@ KEY_VALUE_HOST_PATTERN = _join([
     r"(?:[A-Za-z][A-Za-z0-9+.-]*://)?",
     LOCAL_OR_DOMAIN_HOST_PATTERN,
     OPTIONAL_PORT_PATTERN,
+    r"(?![A-Za-z0-9_.-]|\s*\()",
     r")",
 ])
 SSH_ENDPOINT_PATTERN = _join([r"\b[A-Za-z0-9._-]+@", LOCAL_OR_DOMAIN_HOST_PATTERN, REQUIRED_PORT_PATTERN, r"\b"])
