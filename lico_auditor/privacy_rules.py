@@ -701,7 +701,7 @@ DOCUMENTATION_REFERENCE_TEXT_RULES = frozenset({"disallowed-domain", "ip-literal
 
 REPOSITORY_POLICY_PATH = ".lico-auditor/policy.json"
 REPOSITORY_POLICY_SCHEMA_VERSION = 1
-REPOSITORY_POLICY_MAX_DECLARATIONS = 64
+REPOSITORY_POLICY_MAX_DECLARATIONS = 128
 REPOSITORY_POLICY_MAX_DOMAINS = 64
 REPOSITORY_JSON_DECLARATION_KINDS = frozenset(
     {"config-object", "json", "string-array", "string-map"}
@@ -1741,12 +1741,30 @@ def is_reserved_synthetic_domain(host: str) -> bool:
     )
 
 
+def is_canonical_skill_document_path(relative_path: str) -> bool:
+    """Admit only canonical skill entrypoints and their reference documents.
+
+    Flat `skills/<name>/SKILL.md` and grouped
+    `skills/<group>/.../<name>/SKILL.md` are documentation, as are
+    `skills/<name>/references/...` and grouped
+    `skills/<group>/.../<name>/references/...`. Other markdown under
+    `skills/` stays outside this class.
+    """
+    normalized = normalized_repo_path(relative_path)
+    if not normalized.startswith("skills/"):
+        return False
+    name = Path(normalized).name
+    if name == "skill.md":
+        return True
+    return bool(re.fullmatch(r"skills/(?:[^/]+/)+references/.+", normalized))
+
+
 def is_public_reference_path(relative_path: str) -> bool:
     normalized = normalized_repo_path(relative_path)
     name = Path(normalized).name
     return (
         normalized.startswith(("docs/", "apps/console/", "apps/server/"))
-        or bool(re.fullmatch(r"skills/[^/]+/references/.+", normalized))
+        or is_canonical_skill_document_path(normalized)
         or normalized.startswith(("packages/contracts/", "tools/registry/schema/"))
         or name in {"readme.md", "readme.zh-cn.md", "changelog.md", "contributing.md", "license", "dockerfile"}
         or name in {"package.json", "pubspec.yaml", "analysis_options.yaml"}

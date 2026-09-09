@@ -82,8 +82,9 @@ Repository-specific profiles only define what engineering files are allowed:
 - `skills` for `LicoLand/Lico-Dev`: admits strictly shaped canonical
   repository-policy JSON under `config/`, canonical skill/workflow manifests,
   template JSON at `skills/*/assets/*.template.json`, and common build
-  metadata. Unknown fields, operational data, and customer-like data remain
-  denied.
+  metadata. Canonical skill documents and grouped skill reference documents
+  are public-reference documentation paths. Unknown fields, operational data,
+  and customer-like data remain denied.
 - `common` for organization and retained support repositories: no product-specific
   config paths are inherited.
 

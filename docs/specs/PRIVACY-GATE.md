@@ -35,9 +35,14 @@ The gate is layered:
 - `skills` applies to `LicoLand/Lico-Dev`. It admits canonical
   `config/<canonical-name>.json` repository-policy objects under a strict
   field-and-type schema, canonical skill/workflow manifests, template JSON at
-  `skills/*/assets/*.template.json`, and common build metadata. Unknown
-  configuration fields fail closed; operational exports, databases, and
-  customer-shaped data remain denied.
+  `skills/*/assets/*.template.json`, and common build metadata. Canonical
+  skill documents (`skills/**/SKILL.md`) and skill reference documents
+  (`skills/**/references/**`), including grouped skill trees, are public
+  reference documentation paths for the built-in reviewed official
+  documentation hosts. Additional official documentation hosts are admitted
+  only through `publicReferenceDomains`. Unknown configuration fields fail
+  closed; operational exports, databases, and customer-shaped data remain
+  denied.
 
 The centralized Action checks targets out under `target/`, so it must pass the
 profile explicitly. Repository-local workflows may use `auto`, which maps known
@@ -89,9 +94,11 @@ files always fail.
 
 Context-sensitive rules are heuristic outside their owning context and become
 warnings instead of blockers in synthetic test and fixture paths. IP and
-domain references in documentation material also become warnings. The same
+domain references in documentation material, including canonical skill
+documents and skill reference documents, also become warnings. The same
 hit in a source endpoint, deployment file, or operational script remains
-`high-risk`.
+`high-risk`. Arbitrary markdown under `skills/` that is not `SKILL.md` or
+under `references/` is not documentation material.
 
 Historical JSON that no longer exists at the scanned head and contains no
 user-record or secret signal is reported as a warning; retired user-record,
@@ -118,7 +125,11 @@ Lico-Auditor release by tracking `.lico-auditor/policy.json`:
   user/customer/contact record-shaped data, or secret material. Those checks
   continue to run before and after declaration admission.
 - `publicReferenceDomains` applies only outside deployment/operational paths;
-  internal, local, reserved, and example domains are rejected.
+  internal, local, reserved, and example domains are rejected. Use this
+  declaration for official documentation hosts that are not already in the
+  Auditor built-in public-reference set. It does not waive path
+  classification, deployment or runtime endpoint rejection, or privacy
+  checks, and it must not be used to admit arbitrary hosts.
 - The declaration file itself is strict JSON and must have exactly the shape
   above. An invalid declaration emits `repository-policy-invalid` and fails
   closed.

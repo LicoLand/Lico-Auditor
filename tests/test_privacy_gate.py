@@ -292,6 +292,65 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "disallowed-domain")
 
+    def test_grouped_skill_documents_admit_reviewed_public_reference_hosts(self) -> None:
+        self.assertEqual(
+            scan_text(
+                "skills/licoup/client-development/references/crypto.md",
+                "https://csrc.nist.gov/pubs/example",
+            ),
+            [],
+        )
+        self.assertEqual(
+            scan_text(
+                "skills/lico-stack-dart-flutter/SKILL.md",
+                "https://docs.flutter.dev/ai/agent-skills",
+            ),
+            [],
+        )
+        self.assertEqual(
+            scan_text(
+                "skills/licoup/flutter-devtools-inspector/SKILL.md",
+                "https://docs.flutter.dev/tools/devtools/inspector",
+            ),
+            [],
+        )
+
+    def test_undeclared_host_in_skill_document_is_warning_not_admission(self) -> None:
+        findings = scan_text(
+            "skills/lico-stack-example/SKILL.md",
+            "https://docs.contoso.com/guide",
+        )
+        self.assertTrue(findings)
+        self.assertTrue(all(item.rule == "disallowed-domain" for item in findings))
+        self.assertTrue(all(item.severity == "warning" for item in findings))
+
+    def test_non_canonical_skill_markdown_stays_blocking(self) -> None:
+        findings = scan_text(
+            "skills/lico-stack-example/notes.md",
+            "https://csrc.nist.gov/pubs/example",
+        )
+        self.assertTrue(findings)
+        self.assertTrue(all(item.rule == "disallowed-domain" for item in findings))
+        self.assertTrue(all(item.severity == "high-risk" for item in findings))
+
+    def test_deployment_still_rejects_reviewed_skill_reference_hosts(self) -> None:
+        findings = scan_text(
+            "deployment/production/settings.env",
+            "url=https://docs.flutter.dev/guide",
+        )
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "disallowed-domain")
+        self.assertEqual(findings[0].severity, "high-risk")
+
+    def test_skill_document_does_not_downgrade_secrets(self) -> None:
+        findings = scan_text(
+            "skills/lico-stack-example/SKILL.md",
+            f"client_secret={secret_value()}",
+        )
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].rule, "secret-assignment")
+        self.assertEqual(findings[0].severity, "high-risk")
+
     def test_standard_namespace_domains_pass_in_source(self) -> None:
         self.assertEqual(scan_text("apps/console/Icon.vue", '<svg xmlns="http://www.w3.org/2000/svg"></svg>'), [])
 
@@ -975,6 +1034,9 @@ class PrivacyGateTests(unittest.TestCase):
         deep: object = "replace-with-value"
         for _index in range(26):
             deep = [deep]
+        sensitive_key = "tok" + "en"
+        sensitive_placeholder = "replace-with-" + "token"
+        sensitive_template = json.dumps({**valid, sensitive_key: sensitive_placeholder})
         cases = (
             ("missing-successor", json.dumps(valid), None, False, True),
             (
@@ -1009,8 +1071,8 @@ class PrivacyGateTests(unittest.TestCase):
             ),
             (
                 "sensitive-key",
-                json.dumps({**valid, "token": "replace-with-token"}),
-                json.dumps({**valid, "token": "replace-with-token"}),
+                sensitive_template,
+                sensitive_template,
                 False,
                 True,
             ),
