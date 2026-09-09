@@ -6,7 +6,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lico_auditor.privacy_rules import parse_repository_policy
+from lico_auditor.privacy_rules import (
+    REPOSITORY_POLICY_MAX_DECLARATIONS,
+    REPOSITORY_POLICY_MAX_DOMAINS,
+    parse_repository_policy,
+)
 from lico_auditor.scanner import scan_history, scan_worktree
 
 
@@ -24,6 +28,23 @@ def write_policy(root: Path, policy: dict[str, object]) -> None:
     target = root / ".lico-auditor" / "policy.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(policy), encoding="utf-8")
+
+
+def exact_config_declarations(count: int) -> list[dict[str, str]]:
+    return [
+        {"path": f"tools/example/owned-{index:03d}.json", "kind": "config-object"}
+        for index in range(count)
+    ]
+
+
+def policy_bytes(declarations: list[dict[str, str]], domains: list[str] | None = None) -> bytes:
+    return json.dumps(
+        {
+            "schemaVersion": 1,
+            "allowedJsonPaths": declarations,
+            "publicReferenceDomains": [] if domains is None else domains,
+        }
+    ).encode("utf-8")
 
 
 class RepositoryPolicyTests(unittest.TestCase):
@@ -139,6 +160,67 @@ class RepositoryPolicyTests(unittest.TestCase):
             findings = scan_worktree(root, profile="common")
             self.assertIn("disallowed-domain", {item.rule for item in findings})
 
+    def test_declared_official_docs_domain_admits_skill_paths_not_deployment(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_policy(
+                root,
+                {
+                    "schemaVersion": 1,
+                    "allowedJsonPaths": [],
+                    "publicReferenceDomains": ["docs.language.contoso.com"],
+                },
+            )
+            skill = root / "skills" / "lico-stack-example" / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text("https://docs.language.contoso.com/guide", encoding="utf-8")
+            grouped = root / "skills" / "licoup" / "example" / "references" / "guide.md"
+            grouped.parent.mkdir(parents=True)
+            grouped.write_text(
+                "See https://docs.language.contoso.com/guide",
+                encoding="utf-8",
+            )
+            self.assertEqual(scan_worktree(root, profile="skills"), [])
+
+            deployment = root / "deployment" / "settings.env"
+            deployment.parent.mkdir(parents=True)
+            deployment.write_text(
+                "url=https://docs.language.contoso.com/guide",
+                encoding="utf-8",
+            )
+            findings = scan_worktree(root, profile="skills")
+            deployment_findings = [
+                item
+                for item in findings
+                if item.path.replace("\\", "/") == "deployment/settings.env"
+            ]
+            self.assertTrue(deployment_findings)
+            self.assertTrue(
+                all(
+                    item.rule == "disallowed-domain" and item.severity == "high-risk"
+                    for item in deployment_findings
+                )
+            )
+
+    def test_declared_docs_domain_does_not_admit_undeclared_sibling(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_policy(
+                root,
+                {
+                    "schemaVersion": 1,
+                    "allowedJsonPaths": [],
+                    "publicReferenceDomains": ["docs.language.contoso.com"],
+                },
+            )
+            skill = root / "skills" / "lico-stack-example" / "SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text("https://api.language.contoso.com/v1", encoding="utf-8")
+            findings = scan_worktree(root, profile="skills")
+            self.assertTrue(findings)
+            self.assertTrue(all(item.rule == "disallowed-domain" for item in findings))
+            self.assertTrue(all(item.severity == "warning" for item in findings))
+
     def test_documentation_domain_hits_are_warnings_not_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -159,6 +241,60 @@ class RepositoryPolicyTests(unittest.TestCase):
         )
         self.assertIsNone(policy)
         self.assertIn("public DNS names", error or "")
+
+    def test_sixty_seven_exact_config_objects_are_admitted(self) -> None:
+        self.assertEqual(REPOSITORY_POLICY_MAX_DECLARATIONS, 128)
+        self.assertEqual(REPOSITORY_POLICY_MAX_DOMAINS, 64)
+        declarations = exact_config_declarations(67)
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_policy(
+                root,
+                {
+                    "schemaVersion": 1,
+                    "allowedJsonPaths": declarations,
+                    "publicReferenceDomains": [],
+                },
+            )
+            for declaration in declarations:
+                target = root / declaration["path"]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text('{"name":"example","enabled":true}', encoding="utf-8")
+            self.assertEqual(scan_worktree(root, profile="common"), [])
+
+    def test_declared_limit_one_hundred_twenty_eight_is_valid(self) -> None:
+        policy, error = parse_repository_policy(policy_bytes(exact_config_declarations(128)))
+        self.assertIsNone(error)
+        self.assertIsNotNone(policy)
+        self.assertEqual(len(policy.declarations), 128)
+
+    def test_one_hundred_twenty_nine_declarations_are_invalid(self) -> None:
+        policy, error = parse_repository_policy(policy_bytes(exact_config_declarations(129)))
+        self.assertIsNone(policy)
+        self.assertIn("at most 128 declarations", error or "")
+
+    def test_invalid_declaration_kind_still_fails_closed(self) -> None:
+        policy, error = parse_repository_policy(
+            b'{"schemaVersion":1,"allowedJsonPaths":'
+            b'[{"path":"tools/example/owned.json","kind":"wildcard"}],'
+            b'"publicReferenceDomains":[]}'
+        )
+        self.assertIsNone(policy)
+        self.assertIn("kind must be one of", error or "")
+
+    def test_domain_cap_remains_sixty_four(self) -> None:
+        self.assertEqual(REPOSITORY_POLICY_MAX_DOMAINS, 64)
+        accepted, accepted_error = parse_repository_policy(
+            policy_bytes([], [f"docs{index}.vendor.contoso.com" for index in range(64)])
+        )
+        self.assertIsNone(accepted_error)
+        self.assertIsNotNone(accepted)
+        self.assertEqual(len(accepted.public_reference_domains), 64)
+        rejected, rejected_error = parse_repository_policy(
+            policy_bytes([], [f"docs{index}.vendor.contoso.com" for index in range(65)])
+        )
+        self.assertIsNone(rejected)
+        self.assertIn("at most 64 domains", rejected_error or "")
 
 
 class ChangedPathHistoryTests(unittest.TestCase):
