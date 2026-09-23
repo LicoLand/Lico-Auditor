@@ -110,6 +110,13 @@ not classified as private from names such as `accounts`, `secrets`, or
 public system root does not exempt a machine account, opaque per-user path, or
 other evidenced non-public suffix.
 
+Public toolchain prefixes and fixed client build/runtime temporary paths also
+remain portable references. Rust `tests.rs` files and the lexical bodies of
+`#[cfg(test)] mod` blocks use the existing fixture warning policy; source
+outside those blocks remains blocking. Findings are retained, and hard secret
+rules are never downgraded by test context. Strings and nested comments do not
+extend a test module's scope.
+
 Historical JSON that no longer exists at the scanned head and contains no
 user-record or secret signal is reported as a warning; retired user-record,
 secret, and data-export history remains blocking.

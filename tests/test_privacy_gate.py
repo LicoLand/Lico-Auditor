@@ -608,6 +608,13 @@ class PrivacyGateTests(unittest.TestCase):
             "/opt/homebrew/bin",
             "/opt/local/bin",
             "/usr/local/bin",
+            "/usr/local/bin/curl",
+            "/usr/local/share/qemu/edk2-aarch64-code.fd",
+            "/root/.pub-cache",
+            "/root/.cargo/registry",
+            "/tmp/lico-agent-sessions",
+            "/tmp/lico-remote-history-paths.$$",
+            "/private/tmp/lico-client-build/source/apps/desktop",
             "/System/Library/CoreServices",
             "/Applications/LicoUp.app",
             "/Users/Shared/LicoUp",
@@ -623,6 +630,48 @@ class PrivacyGateTests(unittest.TestCase):
         for value in paths:
             with self.subTest(value=value):
                 self.assertEqual(scan_text("README.md", f"path={value}"), [])
+
+    def test_rust_test_module_findings_keep_context_without_exempting_source(self) -> None:
+        value = synthetic_absolute_path("tmp", "private-workspace")
+        source = '''const BEFORE: &str = "PATH";
+#[cfg(test)]
+mod tests {
+    const QUOTED_BRACES: &str = "}";
+    const RAW_BRACES: &str = r###"} /*"###;
+    const BYTE_BRACE: u8 = b'}';
+    /* nested /* } */ comment */
+    const FIXTURE: &str = "PATH";
+    #[cfg(test)] mod nested { const FIXTURE: &str = "PATH"; }
+}
+const AFTER: &str = "PATH";
+'''.replace("PATH", value)
+        for condition in ("test", "all(test, unix)"):
+            with self.subTest(condition=condition):
+                findings = scan_text("src/runtime.rs", source.replace("cfg(test)", f"cfg({condition})"))
+                self.assertEqual([f.severity for f in findings], ["high-risk", "warning", "warning", "high-risk"])
+        for condition in ("any(test, unix)", "not(test)"):
+            with self.subTest(condition=condition):
+                findings = scan_text("src/runtime.rs", source.replace("cfg(test)", f"cfg({condition})"))
+                self.assertTrue(all(f.severity == "high-risk" for f in findings))
+
+    def test_rust_test_markers_in_strings_and_comments_do_not_change_context(self) -> None:
+        value = synthetic_absolute_path("tmp", "private-workspace")
+        source = '''const TEXT: &str = "#[cfg(test)] mod tests {";
+// #[cfg(test)] mod tests {
+/* #[cfg(test)] mod tests { */
+const PATH: &str = "VALUE";
+'''.replace("VALUE", value)
+        findings = scan_text("src/runtime.rs", source)
+        self.assertEqual([f.severity for f in findings], ["high-risk"])
+
+    def test_rust_fixture_context_never_downgrades_hard_secret_rules(self) -> None:
+        source = '#[cfg(test)] mod tests { const KEY: &str = "' + private_key_marker() + '"; }'
+        findings = scan_text("src/runtime.rs", source)
+        self.assertEqual([(f.rule, f.severity) for f in findings], [("private-key-material", "high-risk")])
+        findings = scan_text("src/driver/tests.rs", macos_home_path("developer01/project"))
+        self.assertEqual([f.severity for f in findings], ["warning"])
+        findings = scan_text("src/driver/tests.rs", private_key_marker())
+        self.assertEqual([f.severity for f in findings], ["high-risk"])
 
     def test_public_roots_do_not_exempt_private_suffixes(self) -> None:
         paths = (
