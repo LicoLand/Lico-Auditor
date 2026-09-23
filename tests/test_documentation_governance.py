@@ -76,7 +76,7 @@ def rules(findings: list[object]) -> set[str]:
 
 class DocumentationGovernanceTests(unittest.TestCase):
     def test_complete_public_document_layout_passes_for_product_profiles(self) -> None:
-        for profile in ("licoup", "badtower", "fabrigent"):
+        for profile in ("licoup", "badtower"):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as raw:
                 root = Path(raw)
                 create_governed_repository(root)
@@ -94,7 +94,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             create_governed_repository(root, omitted=frozenset({"SECURITY.md"}))
-            findings = scan_worktree(root, profile="fabrigent")
+            findings = scan_worktree(root, profile="badtower")
         self.assertIn("documentation-required-path-missing", rules(findings))
         self.assertTrue(any(item.path == "SECURITY.md" for item in findings))
 
@@ -121,7 +121,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             manifest.parent.mkdir(parents=True)
             manifest.write_text('{"name":"example","version":"1.0.0"}', encoding="utf-8")
             run_git(root, "add", "packages/example/package.json")
-            findings = scan_worktree(root, profile="fabrigent")
+            findings = scan_worktree(root, profile="badtower")
         self.assertNotIn("documentation-module-readme-missing", rules(findings))
 
     def test_root_readmes_must_cross_link(self) -> None:
@@ -168,7 +168,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
                 root,
                 omitted=frozenset({"README.md"}),
             )
-            findings = scan_worktree(root, profile="fabrigent")
+            findings = scan_worktree(root, profile="badtower")
         missing = [
             item
             for item in findings
@@ -186,7 +186,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             unindexed = root / "docs" / "architecture" / "UNINDEXED.md"
             unindexed.write_text("# Unindexed\n", encoding="utf-8")
             run_git(root, "add", "docs/specs/OLD.md", "docs/architecture/UNINDEXED.md")
-            findings = scan_worktree(root, profile="fabrigent")
+            findings = scan_worktree(root, profile="badtower")
         self.assertIn("documentation-formal-path-invalid", rules(findings))
         self.assertIn("documentation-link-target-missing", rules(findings))
         self.assertIn("documentation-index-entry-missing", rules(findings))
@@ -205,7 +205,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             with (root / "docs" / "README.md").open("a", encoding="utf-8") as index:
                 index.write("\n- [Release status](releases/README.md)\n")
             run_git(root, "add", "docs/README.md", "docs/releases/README.md")
-            self.assertEqual(scan_worktree(root, profile="fabrigent"), [])
+            self.assertEqual(scan_worktree(root, profile="badtower"), [])
 
     def test_project_repository_must_not_publish_agent_skill_copy(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -227,7 +227,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
             with (root / "docs" / "README.md").open("a", encoding="utf-8") as index:
                 index.write("\n- [Generated model](architecture/MODEL.generated.md)\n")
             run_git(root, "add", "docs/README.md", "docs/architecture/MODEL.generated.md")
-            findings = scan_worktree(root, profile="fabrigent")
+            findings = scan_worktree(root, profile="badtower")
         self.assertIn("documentation-generated-source-missing", rules(findings))
         self.assertIn("documentation-generated-update-missing", rules(findings))
 
@@ -258,7 +258,7 @@ class DocumentationGovernanceTests(unittest.TestCase):
                 target = root / relative_path
                 target.parent.mkdir(parents=True)
                 target.write_text('{"schemaVersion":"1","kind":"example"}', encoding="utf-8")
-                findings = scan_worktree(root, profile="fabrigent")
+                findings = scan_worktree(root, profile="badtower")
                 self.assertIn("json-data-file-not-allowlisted", rules(findings))
 
 

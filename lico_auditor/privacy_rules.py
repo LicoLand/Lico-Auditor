@@ -282,7 +282,6 @@ ASCII_ACCOUNT_NAME_PATTERN = r"[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_$-])?"
 PATH_COMPONENT_TERMINATOR_PATTERN = r"(?=[/\\\s`'\"),;:\]}>!?]|$)"
 GITHUB_LICOUP_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoUp.git"])
 GITHUB_BADTOWER_REMOTE = _join(["https://", "github", ".com/LicoLand/BadTower.git"])
-GITHUB_FABRIGENT_REMOTE = _join(["https://", "github", ".com/LicoLand/Fabrigent.git"])
 GITHUB_LICOARC_PLUGINS_REMOTE = _join(["https://", "github", ".com/LicoLand/LicoArc-Plugins.git"])
 GITHUB_LICO_DEV_REMOTE = _join(["https://", "github", ".com/LicoLand/Lico-Dev.git"])
 GITHUB_ORG_PROFILE_REMOTE = _join(["https://", "github", ".com/LicoLand/.github.git"])
@@ -300,7 +299,6 @@ GITHUB_SITE_REMOTES = {
 AUDITED_GITHUB_REMOTES = {
     "LicoUp": GITHUB_LICOUP_REMOTE,
     "BadTower": GITHUB_BADTOWER_REMOTE,
-    "Fabrigent": GITHUB_FABRIGENT_REMOTE,
     "LicoArc-Plugins": GITHUB_LICOARC_PLUGINS_REMOTE,
     "lico-dev": GITHUB_LICO_DEV_REMOTE,
     "Lico-Dev": GITHUB_LICO_DEV_REMOTE,
@@ -583,18 +581,9 @@ LICOUP_PROVIDER_QUOTA_PUBLIC_HOSTS = frozenset(
 LICOUP_PROVIDER_QUOTA_PATH_PREFIX = (
     "crates/licoup-native/src/domain/provider_quota/"
 )
-LICOUP_SYNTHETIC_DEVELOPER_PATHS = frozenset(
-    {
-        "apps/desktop/test/group_conversation_session_binding_test.dart",
-        "apps/desktop/test/messaging/messaging_details_panel_test.dart",
-        "crates/lico-client-native/src/core/acp/tests.rs",
-        "crates/lico-client-native/src/platform/hermes_driver/tests/support.rs",
-        "crates/licoup-native/src/platform/agent_workspace.rs",
-        "crates/licoup-native/src/platform/cursor_driver/update_watcher.rs",
-        "crates/licoup-native/src/platform/runtime_adapters/tests/adapter_dispatch.rs",
-        "docs/plan/agent-conversation-dispatch/multi-agent-routing/checkpoints.json",
-    }
-)
+SYNTHETIC_HOME_ACCOUNT_NAMES = frozenset({"example"})
+MACOS_PORTABLE_HOME_ACCOUNT_NAMES = SYNTHETIC_HOME_ACCOUNT_NAMES | {"shared"}
+WINDOWS_PORTABLE_HOME_ACCOUNT_NAMES = SYNTHETIC_HOME_ACCOUNT_NAMES | {"public"}
 LICOUP_PRIVATE_IPV4_NEGATIVE_FIXTURE_PATHS = frozenset(
     {
         "crates/lico-client-native/src/domain/proxy_bridge.rs",
@@ -622,7 +611,14 @@ KEY_VALUE_HOST_PATTERN = _join([
 ])
 SSH_ENDPOINT_PATTERN = _join([r"\b[A-Za-z0-9._-]+@", LOCAL_OR_DOMAIN_HOST_PATTERN, REQUIRED_PORT_PATTERN, r"\b"])
 SYSTEM_PATH_PATTERN = re.compile(
-    r"(?<![:/A-Za-z0-9_.-])/(?:etc|opt|private/tmp|root|srv|tmp|usr/local|var)(?:/[^\s`'\"),;]*)?",
+    r"(?<![:A-Za-z0-9_.-])(?:"
+    r"/(?:private/)?var/folders/[A-Za-z0-9_-]{1,8}/[A-Za-z0-9_-]{8,}(?:/[^\s`'\"),;]*)?"
+    r"|/Volumes/[^/\s`'\"),;]+(?:/[^\s`'\"),;]*)?"
+    r"|/(?:etc|private/tmp|tmp|usr/local)(?:/[^\s`'\"),;]*)?"
+    r"|/(?:opt|root|srv)/[^\s`'\"),;]+"
+    r"|/var/(?:lib|log|run)/[^\s`'\"),;]+"
+    r"|~/(?:\.lico-up|\.licoup)(?:/[^\s`'\"),;]*)?"
+    r")",
     re.IGNORECASE,
 )
 PRIVATE_KEY_BLOCK_PATTERN = re.compile(_join(["-----BEGIN ", r"(?:[A-Z0-9]+ )?PRIVATE KEY", "-----"]))
@@ -926,16 +922,6 @@ BADTOWER_JSON_PATH_PATTERNS = (
     r"registry/(?:core-host-contract|plugins)\.json",
     r"vendor/[^/]+\.json",
 )
-FABRIGENT_JSON_PATH_PATTERNS = (
-    r"artifacts/[^/]+\.json",
-    r"conformance/.+\.json",
-    r"contracts/.+\.json",
-    r"docs/examples/[^/]+(?:\.template|\.schema)?\.json",
-    r"policies/.+\.json",
-    r"protocols/(?:generated|schemas)/.+\.json",
-    r"registry/.+\.json",
-    r"schemas/.+\.json",
-)
 BADTOWER_CONFIG_SHAPE_MARKER_KEYS = frozenset(CONFIG_SHAPE_MARKER_KEYS | {"enabledProtocols"})
 PROJECT_POLICIES = {
     "common": ProjectPolicy(
@@ -959,12 +945,6 @@ PROJECT_POLICIES = {
         allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + BADTOWER_JSON_PATH_PATTERNS,
         shape_marker_keys=BADTOWER_CONFIG_SHAPE_MARKER_KEYS,
     ),
-    "fabrigent": ProjectPolicy(
-        policy_id="fabrigent",
-        description="Fabrigent federation protocol and policy-authority repository policy.",
-        allowed_json_file_names=frozenset(ALLOWED_JSON_FILE_NAMES),
-        allowed_json_path_patterns=COMMON_JSON_PATH_PATTERNS + FABRIGENT_JSON_PATH_PATTERNS,
-    ),
     "website": ProjectPolicy(
         policy_id="website",
         description="Static website repository policy.",
@@ -982,7 +962,6 @@ REPOSITORY_POLICY_ALIASES = {
     ".github": "common",
     "Lico-Auditor": "common",
     "BadTower": "badtower",
-    "Fabrigent": "fabrigent",
     "LicoArc-Plugins": "common",
     "LicoUp": "licoup",
     "lico-auditor": "common",
@@ -1915,8 +1894,18 @@ def is_non_loopback_ipv6(value: str, relative_path: str) -> bool:
     return address.version == 6 and str(address) != "::1"
 
 
-def is_non_synthetic_licoup_developer_path(_value: str, relative_path: str) -> bool:
-    return normalized_repo_path(relative_path) not in LICOUP_SYNTHETIC_DEVELOPER_PATHS
+def is_machine_specific_developer_path(value: str, _relative_path: str) -> bool:
+    normalized = value.replace("\\", "/")
+    parts = [part for part in normalized.split("/") if part]
+    if len(parts) >= 2 and parts[0].lower() == "users":
+        account = parts[1].lower()
+        return account not in MACOS_PORTABLE_HOME_ACCOUNT_NAMES
+    if len(parts) >= 2 and parts[0].lower() == "home":
+        return parts[1].lower() not in SYNTHETIC_HOME_ACCOUNT_NAMES
+    if len(parts) >= 3 and parts[1].lower() == "users":
+        account = parts[2].lower()
+        return account not in WINDOWS_PORTABLE_HOME_ACCOUNT_NAMES
+    return True
 
 
 def is_declared_public_reference_host(
@@ -2017,7 +2006,6 @@ def is_public_placeholder_value(candidate: str) -> bool:
     return (
         "licoup" in lowered
         or "badtower" in lowered
-        or "fabrigent" in lowered
         or "lico-auditor" in lowered
         or is_allowed_domain(normalized)
     )
@@ -2073,19 +2061,48 @@ def is_source_code_path(relative_path: str) -> bool:
     )
 
 
-def is_system_or_deployment_path(value: str, relative_path: str) -> bool:
-    if is_synthetic_test_or_fixture_path(relative_path):
+def is_system_or_deployment_path(value: str, _relative_path: str) -> bool:
+    # A regex character class describing path separators is not a mount name.
+    if re.search(r"/\[\^?[/\\]", value):
         return False
-    normalized = normalized_repo_path(relative_path)
-    lowered_value = value.lower()
-    if normalized in {"docker-compose.yml", "docker-compose.yaml"}:
+    lowered_value = value.lower().rstrip("/")
+    if lowered_value.startswith(("/private/var/folders/", "/var/folders/", "/volumes/")):
+        return True
+    if lowered_value in {"/opt/homebrew", "/opt/local"} or lowered_value.startswith(
+        ("/opt/homebrew/", "/opt/local/")
+    ):
         return False
-    if normalized == "dockerfile" or normalized.endswith("/dockerfile"):
-        return any(
-            marker in lowered_value
-            for marker in ("/" + "etc/ssh", "/" + "root/.ssh", "/" + "srv/")
-        )
-    if is_source_code_path(normalized):
+    if lowered_value in {
+        "/etc",
+        "/etc/hosts",
+        "/etc/passwd",
+        "/etc/resolv.conf",
+        "/etc/ssh",
+        "/etc/ssl",
+        "/private/tmp",
+        "/tmp",
+        "/usr/local",
+        "/usr/local/bin",
+        "/usr/local/lib",
+        "/usr/local/sbin",
+        "/usr/local/share",
+        "~/.lico-up",
+        "~/.licoup",
+    }:
+        return False
+    if lowered_value.startswith(("/etc/ssh/", "/etc/ssl/")):
+        return False
+    if lowered_value.startswith(("/tmp/", "/private/tmp/")):
+        root = "/private/tmp/" if lowered_value.startswith("/private/tmp/") else "/tmp/"
+        suffix_parts = [part for part in lowered_value.removeprefix(root).split("/") if part]
+        if not suffix_parts:
+            return False
+        return suffix_parts[0] not in {
+            "example",
+            "licoup-agent",
+            "synthetic-fixture-root",
+        }
+    if lowered_value.startswith(("~/.licoup/", "~/.lico-up/")):
         return False
     return True
 
@@ -2402,7 +2419,7 @@ RULES = [
     Rule(
         "system-or-deployment-path",
         "high-risk",
-        "Absolute server, container, deployment, or developer toolchain paths must not be committed.",
+        "Machine-specific temporary, mounted-volume, or non-public deployment paths must not be committed.",
         SYSTEM_PATH_PATTERN,
         "local-path",
         is_system_or_deployment_path,
@@ -2417,7 +2434,7 @@ RULES = [
             + PATH_COMPONENT_TERMINATOR_PATTERN
         ),
         "local-path",
-        is_non_synthetic_licoup_developer_path,
+        is_machine_specific_developer_path,
     ),
     Rule(
         "developer-linux-home-path",
@@ -2433,7 +2450,7 @@ RULES = [
             + PATH_COMPONENT_TERMINATOR_PATTERN
         ),
         "local-path",
-        is_non_synthetic_licoup_developer_path,
+        is_machine_specific_developer_path,
     ),
     Rule(
         "developer-windows-workspace-path",
@@ -2441,7 +2458,7 @@ RULES = [
         "Developer Windows home or workspace paths must not be reachable in public history.",
         WINDOWS_DEVELOPER_PATH_PATTERN,
         "local-path",
-        is_non_synthetic_licoup_developer_path,
+        is_machine_specific_developer_path,
     ),
 ]
 

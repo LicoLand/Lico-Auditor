@@ -82,8 +82,17 @@ def credential_url() -> str:
     return "postgres" + "://user:password@localhost/db"
 
 
+def synthetic_absolute_path(*parts: str) -> str:
+    """Construct deliberately private-shaped inputs without capturing host paths."""
+    return "/" + "/".join(parts)
+
+
 def system_path() -> str:
-    return "/" + "etc/ssh/sshd_config"
+    return "/" + "srv/private-service/runtime"
+
+
+def macos_private_temp_path() -> str:
+    return "/" + "private/var/folders/ab/opaquecomponent123/T/runtime"
 
 
 def cloud_host_label() -> str:
@@ -137,7 +146,7 @@ class PrivacyGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             self.init_git_repo(root)
-            (root / "evidence.txt").write_text(macos_home_path("example/private"), encoding="utf-8")
+            (root / "evidence.txt").write_text(macos_home_path("developer01/private"), encoding="utf-8")
             self.commit_all(root, "add evidence")
             (root / "unrelated.txt").write_text("public", encoding="utf-8")
             self.commit_all(root, "advance head")
@@ -151,9 +160,9 @@ class PrivacyGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             self.init_git_repo(root)
-            (root / "tracked.txt").write_text(macos_home_path("example/tracked"), encoding="utf-8")
+            (root / "tracked.txt").write_text(macos_home_path("developer01/tracked"), encoding="utf-8")
             self.commit_all(root, "add tracked evidence")
-            (root / "untracked.txt").write_text(macos_home_path("example/untracked"), encoding="utf-8")
+            (root / "untracked.txt").write_text(macos_home_path("developer01/untracked"), encoding="utf-8")
 
             findings = collect_findings(root, include_history=True)
 
@@ -164,7 +173,7 @@ class PrivacyGateTests(unittest.TestCase):
             root = Path(raw)
             self.init_git_repo(root)
             evidence = root / "historical.txt"
-            evidence.write_text(macos_home_path("example/historical"), encoding="utf-8")
+            evidence.write_text(macos_home_path("developer01/historical"), encoding="utf-8")
             self.commit_all(root, "add historical evidence")
             evidence.unlink()
             self.commit_all(root, "remove historical evidence")
@@ -175,7 +184,7 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].path, "historical.txt")
 
     def test_finding_redacts_value_and_keeps_fingerprint(self) -> None:
-        leaked_path = macos_home_path("example/private")
+        leaked_path = macos_home_path("developer01/private")
         findings = scan_text("fixture.txt", f"path={leaked_path}")
         self.assertEqual(len(findings), 1)
         rendered = findings[0].to_dict()
@@ -398,7 +407,7 @@ class PrivacyGateTests(unittest.TestCase):
         )
 
     def test_production_metadata_placeholders_pass(self) -> None:
-        current_text = "cluster_name=example-cluster region=${REGION} service_name=fabrigent"
+        current_text = "cluster_name=example-cluster region=${REGION} service_name=example-service"
         ecosystem_text = "service_name=lico-auditor"
         self.assertEqual(scan_text("tools/server-scripts/deploy.sh", current_text), [])
         self.assertEqual(scan_text("tools/server-scripts/deploy.sh", ecosystem_text), [])
@@ -480,7 +489,7 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertEqual(findings[0].severity, "high-risk")
 
     def test_synthetic_tests_report_developer_home_paths_as_warnings(self) -> None:
-        findings = scan_text("tests/vitest/server/example.test.mjs", macos_home_path("example/private"))
+        findings = scan_text("tests/vitest/server/example.test.mjs", macos_home_path("developer01/private"))
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "developer-macos-home-path")
         self.assertEqual(findings[0].severity, "warning")
@@ -490,7 +499,7 @@ class PrivacyGateTests(unittest.TestCase):
             "README.md",
             "path="
             + windows_home_path(
-                "\\".join(("example", "Projects", "sample-app", "config.json"))
+                "\\".join(("developer03", "Projects", "sample-app", "config.json"))
             ),
         )
         self.assertEqual(len(findings), 1)
@@ -514,10 +523,14 @@ class PrivacyGateTests(unittest.TestCase):
 
     def test_real_home_path_usernames_still_fail(self) -> None:
         expected = (
-            (macos_home_path("example/project"), "developer-macos-home-path"),
-            (linux_home_path("user/project"), "developer-linux-home-path"),
+            (macos_home_path("developer01/project"), "developer-macos-home-path"),
+            (macos_home_path("Public/project"), "developer-macos-home-path"),
+            (macos_home_path("user/project"), "developer-macos-home-path"),
+            (linux_home_path("developer02/project"), "developer-linux-home-path"),
+            (linux_home_path("public/project"), "developer-linux-home-path"),
+            (linux_home_path("shared/project"), "developer-linux-home-path"),
             (
-                windows_home_path("example\\project"),
+                windows_home_path("developer03\\project"),
                 "developer-windows-workspace-path",
             ),
         )
@@ -544,10 +557,10 @@ class PrivacyGateTests(unittest.TestCase):
 
     def test_real_home_path_usernames_with_placeholder_tails_still_fail(self) -> None:
         expected = (
-            (macos_home_path("example/<repo-root>"), "developer-macos-home-path"),
-            (linux_home_path("user/${PROJECT_ROOT}"), "developer-linux-home-path"),
+            (macos_home_path("developer01/<repo-root>"), "developer-macos-home-path"),
+            (linux_home_path("developer02/${PROJECT_ROOT}"), "developer-linux-home-path"),
             (
-                windows_home_path("example\\<repo-root>"),
+                windows_home_path("developer03\\<repo-root>"),
                 "developer-windows-workspace-path",
             ),
         )
@@ -578,17 +591,93 @@ class PrivacyGateTests(unittest.TestCase):
         self.assertNotIn(raw, str(rendered))
         self.assertTrue(rendered["fingerprint"])
 
-    def test_system_and_deployment_paths_fail(self) -> None:
+    def test_non_public_deployment_paths_fail(self) -> None:
         findings = scan_text("deployment/production/readme.md", system_path())
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "system-or-deployment-path")
 
-    def test_source_code_generic_system_paths_pass(self) -> None:
-        findings = scan_text("packages/foundation/src/path-defaults.mjs", f"const tmp = '{system_path()}';")
-        self.assertEqual(findings, [])
+    def test_common_os_and_public_product_paths_pass(self) -> None:
+        paths = (
+            "/tmp/example",
+            "/tmp/licoup-agent",
+            "/tmp/synthetic-fixture-root/instances/one",
+            "/private/tmp/example",
+            "/etc/passwd",
+            "/etc/ssh/",
+            "/etc/ssl/",
+            "/opt/homebrew/bin",
+            "/opt/local/bin",
+            "/usr/local/bin",
+            "/System/Library/CoreServices",
+            "/Applications/LicoUp.app",
+            "/Users/Shared/LicoUp",
+            windows_home_path("Public\\LicoUp"),
+            "~/.licoup",
+            "~/.licoup/config.json",
+            "~/.licoup/accounts.json",
+            "~/.licoup/secrets.json",
+            "~/.licoup/backups/snapshot.json",
+            "~/.lico-up",
+            "~/Library/Application Support/LicoUp",
+        )
+        for value in paths:
+            with self.subTest(value=value):
+                self.assertEqual(scan_text("README.md", f"path={value}"), [])
+
+    def test_public_roots_do_not_exempt_private_suffixes(self) -> None:
+        paths = (
+            synthetic_absolute_path("tmp", "developer01"),
+            synthetic_absolute_path("tmp", "developer01", "customer-export"),
+            synthetic_absolute_path("private", "tmp", "developer02", "private-project"),
+            synthetic_absolute_path("etc", "private-service", "runtime.conf"),
+            synthetic_absolute_path("etc", "passwd", "private-copy"),
+            synthetic_absolute_path("opt", "homebrew-private", "runtime"),
+        )
+        for value in paths:
+            with self.subTest(value=value):
+                findings = scan_text("README.md", f"path={value}")
+                self.assertEqual([item.rule for item in findings], ["system-or-deployment-path"])
+
+    def test_file_urls_use_the_same_path_classification(self) -> None:
+        self.assertEqual(scan_text("src/url.rs", "file:///etc/passwd"), [])
+        findings = scan_text("src/url.rs", "file://" + macos_private_temp_path())
+        self.assertEqual([item.rule for item in findings], ["system-or-deployment-path"])
+
+    def test_escaped_backslashes_and_regex_fragments_are_not_windows_paths(self) -> None:
+        fragments = (
+            r'ref\"quote\\slash\tcontrol',
+            r'String.raw`(?:^|\\s)fixture\\path`',
+            r'const pattern = /(?:^|\\s)\\w+\\path/u;',
+        )
+        for value in fragments:
+            with self.subTest(value=value):
+                self.assertEqual(scan_text("tests/path_fixture.py", value), [])
+
+    def test_machine_specific_macos_paths_fail_in_source_and_docs(self) -> None:
+        for path in ("src/runtime.rs", "README.md"):
+            with self.subTest(path=path):
+                findings = scan_text(path, macos_private_temp_path())
+                self.assertEqual([item.rule for item in findings], ["system-or-deployment-path"])
+
+    def test_private_volume_path_fails(self) -> None:
+        value = "/" + "Volumes/PrivateWorkspace/project"
+        findings = scan_text("README.md", value)
+        self.assertEqual([item.rule for item in findings], ["system-or-deployment-path"])
+
+    def test_path_regex_is_not_a_mount_but_bracketed_volume_names_are(self) -> None:
+        self.assertEqual(scan_text("src/path_rules.py", r'pattern = r"/Volumes/[^/\s]+"'), [])
+        value = "/" + "Volumes/[PrivateWorkspace]/project"
+        findings = scan_text("src/path.rs", value)
+        self.assertEqual([item.rule for item in findings], ["system-or-deployment-path"])
+
+    def test_non_public_service_path_fails_in_source_and_operational_material(self) -> None:
+        for path in ("src/path_defaults.rs", "deployment/production/runtime.env"):
+            with self.subTest(path=path):
+                findings = scan_text(path, system_path())
+                self.assertEqual([item.rule for item in findings], ["system-or-deployment-path"])
 
     def test_local_compose_container_paths_pass(self) -> None:
-        self.assertEqual(scan_text("docker-compose.yml", f"LICO_SERVER_DATA_DIR: {system_path()}"), [])
+        self.assertEqual(scan_text("docker-compose.yml", "LICO_SERVER_DATA_DIR: /tmp/licoup-agent"), [])
 
     def test_cloud_server_provisioning_assignment_fails(self) -> None:
         findings = scan_text("tools/scripts/vultr-ip-finder.ps1", f"Hostname={cloud_host_label()}")
@@ -610,11 +699,11 @@ class PrivacyGateTests(unittest.TestCase):
             self.assertEqual(scan_worktree(root), [])
 
     def test_report_target_does_not_emit_absolute_path(self) -> None:
-        local_path = macos_home_path("example/fabrigent")
+        local_path = macos_home_path("example/audit-fixture")
         report = AuditReport(AuditTarget(repo_root=Path(local_path), ref="HEAD"))
         rendered = report.to_dict()
         self.assertEqual(rendered["target"]["project"], "lico")
-        self.assertEqual(rendered["target"]["repo"], "fabrigent")
+        self.assertEqual(rendered["target"]["repo"], "audit-fixture")
         self.assertNotIn(local_path, str(rendered))
 
     def test_unknown_json_data_file_fails(self) -> None:
@@ -652,7 +741,6 @@ class PrivacyGateTests(unittest.TestCase):
             "common",
             "licoup",
             "badtower",
-            "fabrigent",
             "website",
             "skills",
         ):
@@ -737,7 +825,6 @@ class PrivacyGateTests(unittest.TestCase):
             "common",
             "licoup",
             "badtower",
-            "fabrigent",
             "website",
             "skills",
         ):
@@ -876,7 +963,6 @@ class PrivacyGateTests(unittest.TestCase):
     def test_auto_profile_recognizes_renamed_repo_directories(self) -> None:
         self.assertEqual(resolve_scan_profile(Path("LicoUp")), "licoup")
         self.assertEqual(resolve_scan_profile(Path("BadTower")), "badtower")
-        self.assertEqual(resolve_scan_profile(Path("Fabrigent")), "fabrigent")
         self.assertEqual(resolve_scan_profile(Path("LicoArc-Plugins")), "common")
         self.assertEqual(resolve_scan_profile(Path("lico-dev")), "skills")
         self.assertEqual(resolve_scan_profile(Path("Lico-Auditor")), "common")
@@ -889,7 +975,6 @@ class PrivacyGateTests(unittest.TestCase):
         expected = {
             "licoup": ("LicoUp", "licoup"),
             "badtower": ("BadTower", "badtower"),
-            "fabrigent": ("Fabrigent", "fabrigent"),
         }
         for module_name, (repository_name, profile) in expected.items():
             with self.subTest(module=module_name):
@@ -940,7 +1025,7 @@ class PrivacyGateTests(unittest.TestCase):
 
     def test_plugin_source_suppresses_code_path_noise_but_not_opaque_secrets(self) -> None:
         source_path = "src/security.mjs"
-        self.assertEqual(scan_text(source_path, f"const denied = /{system_path().lstrip('/')}/u;"), [])
+        self.assertEqual(scan_text(source_path, 'const denied = "/etc/passwd";'), [])
         findings = scan_text(source_path, f"client_secret={opaque_secret_value()}")
         self.assertEqual([item.rule for item in findings], ["secret-assignment"])
 
@@ -966,21 +1051,6 @@ class PrivacyGateTests(unittest.TestCase):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content, encoding="utf-8")
             self.assertEqual(scan_worktree(root, profile="licoup"), [])
-
-    def test_fabrigent_profile_allows_protocol_and_policy_authority_json(self) -> None:
-        with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
-            fixtures = {
-                "schemas/federation.schema.json": '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}',
-                "protocols/generated/conformance.json": '{"schemaVersion":"1","canonicalSource":"schemas/federation.schema.json"}',
-                "policies/committee/default.json": '{"schemaVersion":"1","strategies":[]}',
-                "registry/authorities.json": '{"schemaVersion":"1","entries":[]}',
-            }
-            for relative_path, content in fixtures.items():
-                target = root / relative_path
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(content, encoding="utf-8")
-            self.assertEqual(scan_worktree(root, profile="fabrigent"), [])
 
     def test_website_profile_does_not_inherit_platform_config_paths(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -1143,7 +1213,7 @@ class PrivacyGateTests(unittest.TestCase):
             {
                 "schemaVersion": 1,
                 "scenario": "replace-with-scenario",
-                "notes": macos_home_path("example/private"),
+                "notes": macos_home_path("developer01/private"),
             }
         )
         with tempfile.TemporaryDirectory() as raw:
@@ -1289,7 +1359,7 @@ class PrivacyGateTests(unittest.TestCase):
                 '{"schemaVersion":"1","users":[{"name":"Alice","email":"alice@example.test"}]}',
                 encoding="utf-8",
             )
-            findings = scan_worktree(root, profile="fabrigent")
+            findings = scan_worktree(root, profile="badtower")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].rule, "user-record-data-shape")
 

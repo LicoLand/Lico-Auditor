@@ -14,7 +14,6 @@
       "include": [
         ".github",
         "BadTower",
-        "Fabrigent",
         "Lico-Auditor",
         "LicoArc-Plugins",
         "Lico-Dev",

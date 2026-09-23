@@ -25,9 +25,6 @@ jobs:
           - repository: LicoLand/BadTower
             branch: main
             profile: badtower
-          - repository: LicoLand/Fabrigent
-            branch: main
-            profile: fabrigent
           - repository: LicoLand/LicoArc-Plugins
             branch: main
             profile: common

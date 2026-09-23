@@ -1,7 +1,7 @@
-# LicoUp, BadTower, and Fabrigent Documentation Governance Gate
+# LicoUp and BadTower Documentation Governance Gate
 
 This specification defines the documentation-governance checks applied by
-Lico-Auditor to the `licoup`, `badtower`, and `fabrigent` policy profiles. It audits the
+Lico-Auditor to the `licoup` and `badtower` policy profiles. It audits the
 tracked publication candidate of a checked-out target repository. It does not
 move, rewrite, or publish target-repository content.
 
