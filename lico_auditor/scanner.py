@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import re
+from bisect import bisect_right
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
@@ -11,6 +12,7 @@ from .contribution_rules import scan_contributor_attribution
 from .documentation_rules import documentation_governance_findings
 from .models import BLOCKING_SEVERITIES, Finding
 from .privacy_rules import (
+    CONTEXT_SENSITIVE_TEXT_RULES,
     RULES,
     RepositoryPolicy,
     effective_text_rule_severity,
@@ -32,6 +34,49 @@ from .privacy_rules import (
 
 SVG_PATH_DATA_ATTR_PATTERN = re.compile(r"""(?is)\bd\s*=\s*(["'])(.*?)\1""")
 SVG_PATH_DATA_SUFFIXES = {".html", ".svg", ".tsx", ".vue"}
+
+RUST_TEST_MODULE_PATTERN = re.compile(
+    r"#\[cfg\(\s*(?:test|all\(\s*test\s*,[^()]*\))\s*\)\]\s*mod\s+\w+\s*\{"
+)
+RUST_TOKEN_PATTERN = re.compile(
+    r'\b(?:br|r)(?P<hashes>\#*)".*?"(?P=hashes)'
+    r'|"(?:\\.|[^"\\])*"'
+    r"|'(?:\\.|[^'\\])'|//[^\n]*|/\*|[{}]",
+    re.DOTALL,
+)
+RUST_COMMENT_DELIMITER_PATTERN = re.compile(r"/\*|\*/")
+
+
+def rust_test_module_spans(text: str) -> list[tuple[int, int]]:
+    """Locate cfg(test) module bodies without treating strings as Rust braces."""
+    openings = {match.end() - 1 for match in RUST_TEST_MODULE_PATTERN.finditer(text)}
+    if not openings:
+        return []
+    spans: list[tuple[int, int]] = []
+    active: list[tuple[int, int]] = []
+    depth = 0
+    position = 0
+    while match := RUST_TOKEN_PATTERN.search(text, position):
+        token = match.group(0)
+        position = match.end()
+        if token == "/*":
+            comment_depth = 1
+            while comment_depth and (delimiter := RUST_COMMENT_DELIMITER_PATTERN.search(text, position)):
+                comment_depth += 1 if delimiter.group(0) == "/*" else -1
+                position = delimiter.end()
+            if comment_depth:
+                break
+        elif token == "{":
+            depth += 1
+            if match.start() in openings:
+                active.append((depth, match.start()))
+        elif token == "}":
+            if active and active[-1][0] == depth:
+                _, start = active.pop()
+                if not active:
+                    spans.append((start, match.end()))
+            depth -= 1
+    return spans
 
 
 def line_column(text: str, index: int) -> tuple[int, int]:
@@ -64,6 +109,8 @@ def scan_text(
 ) -> list[Finding]:
     findings: list[Finding] = []
     svg_path_masked_text: str | None = None
+    test_spans = rust_test_module_spans(text) if relative_path.endswith(".rs") else []
+    test_starts = [start for start, _ in test_spans]
     for rule in RULES:
         if not should_scan_text_rule(rule.rule_id, relative_path):
             continue
@@ -89,9 +136,14 @@ def scan_text(
             ):
                 continue
             line, column = line_column(text, match.start())
+            match_severity = severity
+            if test_spans and rule.rule_id in CONTEXT_SENSITIVE_TEXT_RULES:
+                span_index = bisect_right(test_starts, match.start()) - 1
+                if span_index >= 0 and match.start() < test_spans[span_index][1]:
+                    match_severity = "warning"
             findings.append(
                 Finding(
-                    severity=severity,
+                    severity=match_severity,
                     rule=rule.rule_id,
                     message=rule.message,
                     path=relative_path,

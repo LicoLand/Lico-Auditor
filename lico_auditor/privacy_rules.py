@@ -582,6 +582,16 @@ LICOUP_PROVIDER_QUOTA_PATH_PREFIX = (
     "crates/licoup-native/src/domain/provider_quota/"
 )
 SYNTHETIC_HOME_ACCOUNT_NAMES = frozenset({"example"})
+PUBLIC_SYSTEM_PATH_PREFIXES = (
+    "/opt/homebrew", "/opt/local", "/usr/local/bin", "/usr/local/lib",
+    "/usr/local/sbin", "/usr/local/share", "/etc/ssh", "/etc/ssl",
+    "/root/.pub-cache", "/root/.cargo/registry", "/root/.cargo/git",
+)
+# Fixed product paths and templates published by the client build/runtime tools.
+PUBLIC_TEMP_PRODUCT_ROOTS = frozenset({
+    "licoup-agent", "lico-agent-sessions", "lico-client-build",
+    "lico-client-help.txt", "lico-remote-history-paths.$$", "lico-runtime",
+})
 MACOS_PORTABLE_HOME_ACCOUNT_NAMES = SYNTHETIC_HOME_ACCOUNT_NAMES | {"shared"}
 WINDOWS_PORTABLE_HOME_ACCOUNT_NAMES = SYNTHETIC_HOME_ACCOUNT_NAMES | {"public"}
 LICOUP_PRIVATE_IPV4_NEGATIVE_FIXTURE_PATHS = frozenset(
@@ -1137,6 +1147,7 @@ def is_synthetic_test_or_fixture_path(relative_path: str | Path) -> bool:
         or "test" in parts
         or "tests" in parts
         or "fixtures" in parts
+        or Path(normalized).name == "tests.rs"
     )
 
 
@@ -2068,8 +2079,9 @@ def is_system_or_deployment_path(value: str, _relative_path: str) -> bool:
     lowered_value = value.lower().rstrip("/")
     if lowered_value.startswith(("/private/var/folders/", "/var/folders/", "/volumes/")):
         return True
-    if lowered_value in {"/opt/homebrew", "/opt/local"} or lowered_value.startswith(
-        ("/opt/homebrew/", "/opt/local/")
+    if any(
+        lowered_value == prefix or lowered_value.startswith(prefix + "/")
+        for prefix in PUBLIC_SYSTEM_PATH_PREFIXES
     ):
         return False
     if lowered_value in {
@@ -2090,8 +2102,6 @@ def is_system_or_deployment_path(value: str, _relative_path: str) -> bool:
         "~/.licoup",
     }:
         return False
-    if lowered_value.startswith(("/etc/ssh/", "/etc/ssl/")):
-        return False
     if lowered_value.startswith(("/tmp/", "/private/tmp/")):
         root = "/private/tmp/" if lowered_value.startswith("/private/tmp/") else "/tmp/"
         suffix_parts = [part for part in lowered_value.removeprefix(root).split("/") if part]
@@ -2099,9 +2109,9 @@ def is_system_or_deployment_path(value: str, _relative_path: str) -> bool:
             return False
         return suffix_parts[0] not in {
             "example",
-            "licoup-agent",
+            "applications",
             "synthetic-fixture-root",
-        }
+        } | PUBLIC_TEMP_PRODUCT_ROOTS
     if lowered_value.startswith(("~/.licoup/", "~/.lico-up/")):
         return False
     return True
