@@ -218,7 +218,7 @@ def command_source_of_truth(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run external privacy audit gates for governed LicoUp, BadTower, and Fabrigent repositories."
+        description="Run external privacy audit gates for governed LicoLand repositories."
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -235,9 +235,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     gate.add_argument(
         "--profile",
-        choices=("auto", "common", "licoup", "badtower", "fabrigent", "website", "skills"),
+        choices=("auto", "common", "licoup", "badtower", "website", "skills"),
         default="auto",
-        help="Policy profile: auto, common, licoup, badtower, fabrigent, website, or skills.",
+        help="Policy profile: auto, common, licoup, badtower, website, or skills.",
     )
     gate.add_argument("--format", choices=("text", "json"), default="text")
     gate.set_defaults(func=command_gate)
@@ -251,9 +251,9 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--max-commits", type=int, default=0)
     report.add_argument(
         "--profile",
-        choices=("auto", "common", "licoup", "badtower", "fabrigent", "website", "skills"),
+        choices=("auto", "common", "licoup", "badtower", "website", "skills"),
         default="auto",
-        help="Policy profile: auto, common, licoup, badtower, fabrigent, website, or skills.",
+        help="Policy profile: auto, common, licoup, badtower, website, or skills.",
     )
     report.add_argument("--format", choices=("json", "text"), default="json")
     report.set_defaults(func=command_report)

@@ -300,7 +300,7 @@ class LicoupDomainPolicyTests(unittest.TestCase):
         )
         self.assertEqual(findings, [])
 
-    def test_known_client_fixture_paths_do_not_publish_synthetic_home_paths(self) -> None:
+    def test_synthetic_home_accounts_are_portable_in_any_file(self) -> None:
         macos_path = "/" + "Users/" + "example/project"
         linux_path = "/" + "home/" + "example/project"
         windows_path = "C:\\" + "Users\\" + "example\\project"
@@ -312,10 +312,7 @@ class LicoupDomainPolicyTests(unittest.TestCase):
         for path, value in cases:
             with self.subTest(path=path):
                 self.assertEqual(scan_text(path, value), [])
-        self.assertEqual(
-            rules(scan_text("crates/licoup-native/src/platform/runtime.rs", macos_path)),
-            ["developer-macos-home-path"],
-        )
+        self.assertEqual(scan_text("crates/licoup-native/src/platform/runtime.rs", macos_path), [])
 
 
 class LicoupSecretPredicateTests(unittest.TestCase):

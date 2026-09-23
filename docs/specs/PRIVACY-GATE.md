@@ -1,11 +1,11 @@
 # Lico-Auditor Privacy Gate
 
-`lico-auditor` is the external audit gate for governed LicoUp, BadTower, and
-Fabrigent repositories. The audit repository is governed by a single `only`
-branch. Actions must run the latest `only` HEAD; temporary Auditor pull-request
+`lico-auditor` is the external audit gate for governed LicoLand repositories.
+The audit repository is governed by a single `only` branch. Actions must run
+the latest `only` HEAD; temporary Auditor pull-request
 branches are allowed for maintenance and do not affect target gates.
-The current governed targets cover LicoUp; BadTower; Fabrigent; the retained independent `LicoArc-Plugins`
-marketplace; developer and organization governance; and official website
+The current governed targets cover LicoUp; BadTower; the retained independent
+`LicoArc-Plugins` marketplace; developer and organization governance; and official website
 repositories.
 
 ## Policy Profiles
@@ -27,8 +27,6 @@ The gate is layered:
 - `badtower` applies to `LicoLand/BadTower`. It admits node-owned
   configuration, implementation schemas, registries, and synthetic examples;
   protocol and federation policy authority remain outside this profile.
-- `fabrigent` applies to `LicoLand/Fabrigent`. It admits public protocol
-  schemas, policy definitions, registries, and generated projections.
 - `website` applies to official public website repositories. Arbitrary JSON
   content/data files are denied unless a future website-specific schema is
   added here.
@@ -100,6 +98,18 @@ hit in a source endpoint, deployment file, or operational script remains
 `high-risk`. Arbitrary markdown under `skills/` that is not `SKILL.md` or
 under `references/` is not documentation material.
 
+Path findings distinguish machine identity from portable public paths. Concrete
+developer home accounts, macOS per-user temporary roots, named mounted volumes,
+and non-public service paths in operational material are findings. Common OS
+paths such as `/tmp`, `/private/tmp`, `/etc/passwd`, and `/usr/local/bin`,
+shared system homes such as `/Users/Shared`, synthetic home accounts such as
+`example`, and published product paths such as `~/.licoup` are portable
+references and are not privacy findings. Public product-root descendants are
+not classified as private from names such as `accounts`, `secrets`, or
+`backups`; independent content and concrete-identity rules still apply. A
+public system root does not exempt a machine account, opaque per-user path, or
+other evidenced non-public suffix.
+
 Historical JSON that no longer exists at the scanned head and contains no
 user-record or secret signal is reported as a warning; retired user-record,
 secret, and data-export history remains blocking.
@@ -154,7 +164,7 @@ selected range.
 
 ## Documentation Governance
 
-The `licoup`, `badtower`, and `fabrigent` profiles also validate
+The `licoup` and `badtower` profiles also validate
 the current tracked documentation publication candidate. The check covers the required public
 layout, formal-document categories and index, relative links outside the root
 READMEs, generated-projection metadata, local-only ignore boundaries, and
@@ -166,4 +176,4 @@ provenance remain the responsibility of the target repository's code, schemas,
 registries, and verifiers.
 
 See
-[LicoUp, BadTower, and Fabrigent Documentation Governance Gate](DOCUMENTATION-GOVERNANCE.md).
+[LicoUp and BadTower Documentation Governance Gate](DOCUMENTATION-GOVERNANCE.md).

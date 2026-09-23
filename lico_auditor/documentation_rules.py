@@ -9,7 +9,7 @@ from .models import Finding
 
 
 GOVERNED_DOCUMENTATION_PROFILES = frozenset(
-    {"licoup", "badtower", "fabrigent"}
+    {"licoup", "badtower"}
 )
 
 REQUIRED_PUBLIC_PATHS = (
