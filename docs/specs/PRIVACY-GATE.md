@@ -147,9 +147,56 @@ Lico-Auditor release by tracking `.lico-auditor/policy.json`:
   Auditor built-in public-reference set. It does not waive path
   classification, deployment or runtime endpoint rejection, or privacy
   checks, and it must not be used to admit arbitrary hosts.
-- The declaration file itself is strict JSON and must have exactly the shape
-  above. An invalid declaration emits `repository-policy-invalid` and fails
-  closed.
+- The declaration file itself is strict JSON. The three fields above remain
+  required; the only optional extension is `reviewedSchemaHistory` below. An
+  invalid declaration emits `repository-policy-invalid` and fails closed.
+
+### Reviewed schema source in history
+
+An exact synthetic schema fixture that has been retired from its data-file form
+may declare a compiled source successor. This is a history classification, not
+permission to commit SQL files, data exports or secret material. Each declaration
+in the optional `reviewedSchemaHistory` list contains exactly:
+
+- `path`: one exact `tests/fixtures/` SQL path, without globs or traversal;
+- `sha256`: the full SHA-256 of the reviewed historical bytes;
+- `successor`: `{ "path": "tests/fixtures/schema_layout.rs", "constant": "CAPTURED_SCHEMA" }`;
+- `producer`: the exact repository-relative Rust source `path` and immutable
+  Git `revision` identifying the reviewed producer provenance;
+- `reason`: a bounded, explicit explanation of the synthetic fixture and review.
+
+The scanner verifies that the old path is absent from the selected candidate,
+that the producer revision is its ancestor and names a regular source blob, and
+that the regular source successor exists at that candidate. The successor must
+consist of line comments/whitespace and one exported raw-string constant. Its
+decoded payload must be byte-identical to the declared historical content;
+comments containing a declaration, disabled code and ambiguous declarations do
+not constitute a successor. Uncommitted files cannot rescue missing or changed
+committed proof. The declaration count is bounded at32 and each source blob at
+256KiB. Use a commit or a range with a unique right-hand candidate; ambiguous
+history selections do not establish this proof.
+
+SQL is never executed by this classifier. A deliberately closed source grammar
+admits table/index definitions, ADD COLUMN, counter-maintenance triggers and one
+integer version marker per declared key/value schema-metadata table. Ordinary
+INSERT/UPDATE/DELETE/export statements, data-populating CREATE AS SELECT, other
+triggers and database attachment do not qualify, even if a declaration and a
+matching source string are supplied. Future grammar expansion needs its own
+justification and tests; this is not a general SQL allowlist.
+
+Successful verification emits `reviewed-schema-source-history` as visible
+informational evidence and changes only the historical data-file classification.
+All privacy/text/attribution rules still scan those exact historical bytes.
+Changed historical content not covered by its exact declaration stays blocked;
+missing/stale provenance emits `schema-history-proof-unavailable`, and unread
+selected history emits `git-history-content-unavailable`. No severity fallback
+or broad matched-content suppression is used.
+
+The source linkage proves the claimed byte relationship and committed provenance,
+not that the producer was executed correctly or that all content is public.
+Contextual review and producer/consumer tests remain required. Repository consumers
+must not claim this optional contract is canonical until the owning Auditor
+change has actually been adopted; a tested maintenance branch is only a proposal.
 
 ## GitHub Enforcement
 

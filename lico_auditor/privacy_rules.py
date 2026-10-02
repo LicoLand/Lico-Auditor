@@ -8,6 +8,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from .schema_history import SchemaHistoryDeclaration, parse_declarations as parse_schema_history
 from typing import Callable, Iterable
 
 
@@ -747,6 +748,7 @@ class RepositoryPolicy:
     schema_version: int = REPOSITORY_POLICY_SCHEMA_VERSION
     declarations: tuple[RepositoryJsonDeclaration, ...] = ()
     public_reference_domains: frozenset[str] = frozenset()
+    reviewed_schema_history: tuple[SchemaHistoryDeclaration, ...] = ()
 
     def declaration_for(self, relative_path: str) -> RepositoryJsonDeclaration | None:
         normalized = normalized_repo_path(relative_path)
@@ -1030,9 +1032,10 @@ def parse_repository_policy(raw):
     if not isinstance(data, dict):
         return _invalid_repository_policy("Repository policy must be a JSON object.")
     keys = {str(key) for key in data}
-    if keys != {"schemaVersion", "allowedJsonPaths", "publicReferenceDomains"}:
+    required = {"schemaVersion", "allowedJsonPaths", "publicReferenceDomains"}
+    if not required <= keys or keys - required - {"reviewedSchemaHistory"}:
         return _invalid_repository_policy(
-            "Repository policy must contain exactly schemaVersion, allowedJsonPaths, and publicReferenceDomains."
+            "Repository policy requires schemaVersion, allowedJsonPaths and publicReferenceDomains; only reviewedSchemaHistory is optional."
         )
     if type(data["schemaVersion"]) is not int or data["schemaVersion"] != REPOSITORY_POLICY_SCHEMA_VERSION:
         return _invalid_repository_policy(
@@ -1100,10 +1103,15 @@ def parse_repository_policy(raw):
             )
         domains.add(domain)
 
+    try:
+        history = parse_schema_history(data.get("reviewedSchemaHistory", []))
+    except ValueError as error:
+        return _invalid_repository_policy(str(error))
     return RepositoryPolicy(
         schema_version=REPOSITORY_POLICY_SCHEMA_VERSION,
         declarations=tuple(declarations),
         public_reference_domains=frozenset(domains),
+        reviewed_schema_history=history,
     ), None
 
 
