@@ -148,8 +148,26 @@ Lico-Auditor release by tracking `.lico-auditor/policy.json`:
   classification, deployment or runtime endpoint rejection, or privacy
   checks, and it must not be used to admit arbitrary hosts.
 - The declaration file itself is strict JSON. The three fields above remain
-  required; the only optional extension is `reviewedSchemaHistory` below. An
+  required; optional extensions are `reviewedSchemaHistory` and `reviewedUnixPathLiterals` below. An
   invalid declaration emits `repository-policy-invalid` and fails closed.
+
+### Exact reviewed Unix path literals
+
+`reviewedUnixPathLiterals` admits a reviewed public or constructed fixture without
+moving its source or changing its valid spelling. Each entry contains exactly
+`rule`, `path`, `value`, and a nonempty `reason`. The rule must be
+`developer-macos-home-path`, `developer-linux-home-path`, or
+`system-or-deployment-path`; the path is one exact repository-relative owner,
+without globbing or traversal. The value is a complete single-line Unix path,
+without quoting or escaping characters. There are at most 128 entries.
+
+Matching requires the entire quoted value at the detector's match position and
+its closing quote. A different owner, rule, account, sibling, suffix or child
+path remains reportable. The strict policy's own matching `value` declaration
+is admitted; prose and other fields remain scanned. No secret, credential,
+record-data or attribution rule can be disabled through this field. Values must
+be contextually reviewed as public or synthetic before declaration; the field
+is not authority to disclose real private paths.
 
 ### Reviewed schema source in history
 
