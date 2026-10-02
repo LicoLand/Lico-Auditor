@@ -11,7 +11,7 @@ from pathlib import Path
 
 from lico_auditor.privacy_rules import parse_repository_policy
 from lico_auditor.scanner import scan_history, scan_worktree
-from lico_auditor.schema_history import schema_only, source_constant
+from lico_auditor.schema_history import schema_fixture_only, schema_only, source_constant
 
 
 SQL = b"""-- Synthetic producer output; no user records.
@@ -71,6 +71,57 @@ class Fixture:
 
 
 class SchemaHistoryTests(unittest.TestCase):
+    def test_current_schema_fixture_is_exact_and_definition_only(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = {
+                "schemaVersion": 1,
+                "allowedJsonPaths": [],
+                "publicReferenceDomains": [],
+                "reviewedSchemaFixtures": [{
+                    "path": OLD,
+                    "reason": "Synthetic retained-table structure used by deterministic migration coverage.",
+                }],
+            }
+            (root / ".lico-auditor").mkdir()
+            (root / ".lico-auditor" / "policy.json").write_text(json.dumps(document))
+            (root / "tests" / "fixtures").mkdir(parents=True)
+            ddl = b"CREATE TABLE retained(id TEXT PRIMARY KEY);\nCREATE INDEX retained_id ON retained(id);\n"
+            (root / OLD).write_bytes(ddl)
+            self.assertFalse(scan_worktree(root, profile="common"))
+            self.assertTrue(schema_fixture_only(ddl))
+
+            for unsafe in [
+                b"INSERT INTO retained(id) VALUES ('row');\n",
+                b"DELETE FROM retained;\n",
+                b"ATTACH DATABASE 'other.db' AS external;\n",
+                b"ALTER TABLE retained ADD COLUMN runtime_value TEXT;\n",
+                b"CREATE TRIGGER mutate AFTER UPDATE ON retained BEGIN DELETE FROM retained; END;\n",
+            ]:
+                with self.subTest(unsafe=unsafe.split()[0]):
+                    (root / OLD).write_bytes(ddl + unsafe)
+                    self.assertIn("data-file-not-allowed", {item.rule for item in scan_worktree(root, profile="common")})
+                    self.assertFalse(schema_fixture_only(ddl + unsafe))
+
+            (root / OLD).write_bytes(ddl)
+            other = root / "tests" / "fixtures" / "other.sql"
+            other.write_bytes(ddl)
+            self.assertIn("data-file-not-allowed", {item.rule for item in scan_worktree(root, profile="common") if item.path == "tests/fixtures/other.sql"})
+
+    def test_current_schema_fixture_declaration_rejects_broad_or_duplicate_paths(self):
+        base = {"schemaVersion": 1, "allowedJsonPaths": [], "publicReferenceDomains": []}
+        for path in ["tests/fixtures/*.sql", "tests/fixtures/../schema.sql", "exports/schema.sql"]:
+            document = dict(base, reviewedSchemaFixtures=[{
+                "path": path,
+                "reason": "Synthetic retained-table structure used by deterministic migration coverage.",
+            }])
+            self.assertIsNotNone(parse_repository_policy(json.dumps(document).encode())[1])
+        document = dict(base, reviewedSchemaFixtures=[{
+            "path": OLD,
+            "reason": "Synthetic retained-table structure used by deterministic migration coverage.",
+        }] * 2)
+        self.assertIsNotNone(parse_repository_policy(json.dumps(document).encode())[1])
+
     def test_exact_provenance_is_visible_and_text_rules_still_run(self):
         payload = SQL + b"-- Privacy canary: /Users/maintainer/Library/synthetic.json\n"
         with tempfile.TemporaryDirectory() as raw:

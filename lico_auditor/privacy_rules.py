@@ -8,7 +8,13 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from .schema_history import SchemaHistoryDeclaration, parse_declarations as parse_schema_history
+from .schema_history import (
+    SchemaFixtureDeclaration,
+    SchemaHistoryDeclaration,
+    parse_declarations as parse_schema_history,
+    parse_fixture_declarations as parse_schema_fixtures,
+    schema_fixture_only,
+)
 from typing import Callable, Iterable
 
 
@@ -750,11 +756,19 @@ class RepositoryPolicy:
     declarations: tuple[RepositoryJsonDeclaration, ...] = ()
     public_reference_domains: frozenset[str] = frozenset()
     reviewed_schema_history: tuple[SchemaHistoryDeclaration, ...] = ()
+    reviewed_schema_fixtures: tuple[SchemaFixtureDeclaration, ...] = ()
     reviewed_unix_path_literals: tuple[dict[str, str], ...] = ()
 
     def declaration_for(self, relative_path: str) -> RepositoryJsonDeclaration | None:
         normalized = normalized_repo_path(relative_path)
         for declaration in self.declarations:
+            if declaration.path == normalized:
+                return declaration
+        return None
+
+    def schema_fixture_for(self, relative_path: str) -> SchemaFixtureDeclaration | None:
+        normalized = normalized_repo_path(relative_path)
+        for declaration in self.reviewed_schema_fixtures:
             if declaration.path == normalized:
                 return declaration
         return None
@@ -1035,9 +1049,9 @@ def parse_repository_policy(raw):
         return _invalid_repository_policy("Repository policy must be a JSON object.")
     keys = {str(key) for key in data}
     required = {"schemaVersion", "allowedJsonPaths", "publicReferenceDomains"}
-    if not required <= keys or keys - required - {"reviewedSchemaHistory", "reviewedUnixPathLiterals"}:
+    if not required <= keys or keys - required - {"reviewedSchemaFixtures", "reviewedSchemaHistory", "reviewedUnixPathLiterals"}:
         return _invalid_repository_policy(
-            "Repository policy requires schemaVersion, allowedJsonPaths and publicReferenceDomains; reviewedSchemaHistory and reviewedUnixPathLiterals are optional."
+            "Repository policy requires schemaVersion, allowedJsonPaths and publicReferenceDomains; reviewedSchemaFixtures, reviewedSchemaHistory and reviewedUnixPathLiterals are optional."
         )
     if type(data["schemaVersion"]) is not int or data["schemaVersion"] != REPOSITORY_POLICY_SCHEMA_VERSION:
         return _invalid_repository_policy(
@@ -1137,6 +1151,7 @@ def parse_repository_policy(raw):
 
     try:
         history = parse_schema_history(data.get("reviewedSchemaHistory", []))
+        fixtures = parse_schema_fixtures(data.get("reviewedSchemaFixtures", []))
     except ValueError as error:
         return _invalid_repository_policy(str(error))
     return RepositoryPolicy(
@@ -1144,6 +1159,7 @@ def parse_repository_policy(raw):
         declarations=tuple(declarations),
         public_reference_domains=frozenset(domains),
         reviewed_schema_history=history,
+        reviewed_schema_fixtures=fixtures,
         reviewed_unix_path_literals=tuple(literals),
     ), None
 
@@ -1668,6 +1684,11 @@ def file_policy_violations(
             "data-file-policy",
         )
         return findings
+
+    if suffix == ".sql" and repository_policy is not None:
+        declaration = repository_policy.schema_fixture_for(normalized)
+        if declaration is not None and schema_fixture_only(raw):
+            return findings
 
     if suffix in {".csv", ".tsv", ".sql", ".dump", ".jsonl", ".ndjson"}:
         add(
