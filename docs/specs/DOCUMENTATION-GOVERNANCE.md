@@ -38,6 +38,11 @@ Tracked formal Markdown under `docs/` must be one of the named documents above
 or live under `architecture/`, `functionality/`, `protocols/`, `examples/`, or
 `adrs/`.
 
+The LicoUp profile additionally recognizes its maintained `docs/CLOSURE.md`
+entry point. This exact path retains index, link, generated-source and privacy
+checks; similarly named notes and temporary reports are not admitted, and other
+profiles do not inherit this project-specific route.
+
 ## README boundary, index, and link integrity
 
 - `README.md` and `README.zh-CN.md` must remain tracked root entry points.

@@ -58,6 +58,7 @@ FORMAL_DOCUMENTATION_FILES = frozenset(
 
 LICOUP_FORMAL_DOCUMENTATION_FILES = frozenset(
     {
+        "docs/CLOSURE.md",
         "docs/RELEASE-PACKAGES.md",
         "docs/RELEASE-PACKAGES.zh-CN.md",
     }
@@ -340,7 +341,8 @@ def documentation_governance_findings(repo_root: Path, profile: str) -> list[Fin
             for path in tracked
             if path.lower().endswith(".md")
             and path != "docs/README.md"
-            and (path in FORMAL_DOCUMENTATION_FILES or path.startswith(FORMAL_DOCUMENTATION_PREFIXES))
+            and (path in FORMAL_DOCUMENTATION_FILES or path.startswith(FORMAL_DOCUMENTATION_PREFIXES)
+                 or (profile == "licoup" and path == "docs/CLOSURE.md"))
         }
         for path in sorted(formal_documents - indexed):
             findings.append(

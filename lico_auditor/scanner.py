@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import re
 from bisect import bisect_right
@@ -11,6 +12,7 @@ from pathlib import Path
 from .contribution_rules import scan_contributor_attribution
 from .documentation_rules import documentation_governance_findings
 from .models import BLOCKING_SEVERITIES, Finding
+from .schema_history import SchemaHistoryDeclaration, schema_only, verify_context as verify_schema_history_context
 from .privacy_rules import (
     CONTEXT_SENSITIVE_TEXT_RULES,
     RULES,
@@ -442,6 +444,7 @@ def _historical_file_policy_findings(
     head_paths: set[str],
     head_templates: dict[str, tuple[str, bytes] | None],
     repository_policy: RepositoryPolicy | None = None,
+    schema_proofs: dict[tuple[str, str], SchemaHistoryDeclaration] | None = None,
 ) -> list[Finding]:
     policy_findings = scan_file_policy(
         relative_path,
@@ -450,6 +453,13 @@ def _historical_file_policy_findings(
         profile=profile,
         repository_policy=repository_policy,
     )
+    proof_key = (relative_path, hashlib.sha256(raw).hexdigest())
+    if schema_proofs and proof_key in schema_proofs and schema_only(raw):
+        # Only the proven historical file-format classification changes. All
+        # content/privacy and attribution scans below still run on the old bytes.
+        return [item for item in policy_findings if item.rule != "data-file-not-allowed"] + [
+            Finding("info", "reviewed-schema-source-history", "Historical synthetic schema is byte-identical to declared compiled test source with committed producer provenance; content rules remain active.", path=relative_path, fingerprint=proof_key[1][:16], evidence_class="schema-source-history", commit=commit)
+        ]
     if not any(item.rule == "json-data-file-not-allowlisted" for item in policy_findings):
         return policy_findings
     normalized = normalized_repo_path(relative_path)
@@ -533,6 +543,10 @@ def scan_history(
             )
         )
     head_paths, head_templates = _head_template_context(repo_root, ref, profile=scan_profile)
+    schema_proofs, schema_errors = verify_schema_history_context(
+        repo_root, ref, repository_policy.reviewed_schema_history if repository_policy else ()
+    )
+    findings.extend(schema_errors)
     seen_blobs: set[tuple[bytes, str]] = set()
     for commit in commits:
         if full_tree:
@@ -548,7 +562,10 @@ def scan_history(
                 continue
             seen_blobs.add(blob)
             new_blobs.append(blob)
-        for relative_path, raw in _cat_blob_batch(repo_root, new_blobs):
+        contents = _cat_blob_batch(repo_root, new_blobs)
+        if len(contents) != len(new_blobs):
+            findings.append(Finding("error", "git-history-content-unavailable", "Not every selected historical blob could be read; missing content is not reviewed or admitted.", evidence_class="git-history", commit=commit))
+        for relative_path, raw in contents:
             findings.extend(
                 _historical_file_policy_findings(
                     relative_path,
@@ -558,6 +575,7 @@ def scan_history(
                     head_paths=head_paths,
                     head_templates=head_templates,
                     repository_policy=repository_policy,
+                    schema_proofs=schema_proofs,
                 )
             )
             if b"\0" in raw:

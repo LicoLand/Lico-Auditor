@@ -75,6 +75,32 @@ def rules(findings: list[object]) -> set[str]:
 
 
 class DocumentationGovernanceTests(unittest.TestCase):
+    def test_licoup_root_closure_guide_is_formal_but_not_a_path_exemption(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            create_governed_repository(root)
+            guide = root / "docs/CLOSURE.md"
+            guide.write_text("# Closure\n\n[Runbook](RUNBOOK.md)\n", encoding="utf-8")
+            index = root / "docs/README.md"
+            index.write_text(index.read_text() + "\n[Closure](CLOSURE.md)\n", encoding="utf-8")
+            run_git(root, "add", "docs/CLOSURE.md", "docs/README.md")
+            self.assertEqual(scan_worktree(root, profile="licoup"), [])
+            self.assertIn("documentation-formal-path-invalid", rules(scan_worktree(root, profile="badtower")))
+
+            indexed = index.read_text()
+            index.write_text(indexed.replace("[Closure](CLOSURE.md)", ""), encoding="utf-8")
+            run_git(root, "add", "docs/README.md")
+            self.assertTrue(any(item.path == "docs/CLOSURE.md" and item.rule == "documentation-index-entry-missing" for item in scan_worktree(root, profile="licoup")))
+            index.write_text(indexed, encoding="utf-8")
+            run_git(root, "add", "docs/README.md")
+
+            guide.write_text("# Closure\n\n[Missing](missing.md)\n", encoding="utf-8")
+            (root / "docs/CLOSURE-NOTES.md").write_text("# Temporary notes\n", encoding="utf-8")
+            run_git(root, "add", "docs/CLOSURE.md", "docs/CLOSURE-NOTES.md")
+            observed = scan_worktree(root, profile="licoup")
+            self.assertIn("documentation-link-target-missing", rules(observed))
+            self.assertTrue(any(item.path == "docs/CLOSURE-NOTES.md" and item.rule == "documentation-formal-path-invalid" for item in observed))
+
     def test_complete_public_document_layout_passes_for_product_profiles(self) -> None:
         for profile in ("licoup", "badtower"):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as raw:
