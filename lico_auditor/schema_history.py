@@ -27,6 +27,12 @@ class SchemaHistoryDeclaration:
     reason: str
 
 
+@dataclass(frozen=True)
+class SchemaFixtureDeclaration:
+    path: str
+    reason: str
+
+
 def _path(value: object, suffix: str | None = None, *, fixture: bool = False) -> bool:
     return (
         isinstance(value, str)
@@ -68,7 +74,30 @@ def parse_declarations(value: object) -> tuple[SchemaHistoryDeclaration, ...]:
     return tuple(result)
 
 
-def schema_only(raw: bytes) -> bool:
+def parse_fixture_declarations(value: object) -> tuple[SchemaFixtureDeclaration, ...]:
+    if not isinstance(value, list) or len(value) > MAX_DECLARATIONS:
+        raise ValueError("reviewedSchemaFixtures must be a bounded list of exact declarations.")
+    result = []
+    seen = set()
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {"path", "reason"}:
+            raise ValueError("A reviewed schema fixture requires only exact path and reason fields.")
+        path = item["path"]
+        reason = item["reason"]
+        if (
+            not _path(path, ".sql", fixture=True)
+            or not isinstance(reason, str) or not 20 <= len(reason.strip()) <= 512
+            or any(ord(char) < 32 for char in reason)
+        ):
+            raise ValueError("Reviewed schema fixtures require an exact test-fixture path and bounded purpose.")
+        if path in seen:
+            raise ValueError("Reviewed schema fixture paths must be unique.")
+        seen.add(path)
+        result.append(SchemaFixtureDeclaration(path, reason.strip()))
+    return tuple(result)
+
+
+def _schema_only(raw: bytes, *, allow_version_marker: bool, allow_migrations: bool) -> bool:
     """Recognize a deliberately small source grammar without executing any SQL.
 
     Table/index definitions, ADD COLUMN and counter-maintenance triggers are source.
@@ -107,16 +136,27 @@ def schema_only(raw: bytes) -> bool:
             continue
         if re.fullmatch(rf"CREATE\s+(?:UNIQUE\s+)?INDEX\s+{IDENTIFIER}\s+ON\s+{IDENTIFIER}\s*\([\s\S]+\)\s*(?:WHERE\s+{IDENTIFIER}\s+LIKE\s+'(?:''|[^'])*'\s*)?;", statement, re.I):
             continue
+        if not allow_migrations:
+            return False
         if re.fullmatch(rf"ALTER\s+TABLE\s+{IDENTIFIER}\s+ADD\s+COLUMN\s+{IDENTIFIER}\s+[^;]+;", statement, re.I):
             continue
         if trigger.fullmatch(statement) or changed_column_trigger.fullmatch(statement):
             continue
         marker = re.fullmatch(rf"INSERT\s+INTO\s+({IDENTIFIER})\s*\(\s*key\s*,\s*value\s*\)\s*VALUES\s*\(\s*'version'\s*,\s*'([0-9]{{1,9}})'\s*\)\s*;", statement, re.I)
-        if marker and marker[1].lower() in markers and marker[1].lower() not in marker_rows:
+        if allow_version_marker and marker and marker[1].lower() in markers and marker[1].lower() not in marker_rows:
             marker_rows.add(marker[1].lower())
             continue
         return False
     return True
+
+
+def schema_only(raw: bytes) -> bool:
+    return _schema_only(raw, allow_version_marker=True, allow_migrations=True)
+
+
+def schema_fixture_only(raw: bytes) -> bool:
+    """Accept current synthetic fixture structure, never rows or executable commands."""
+    return _schema_only(raw, allow_version_marker=False, allow_migrations=False)
 
 
 def source_constant(raw: bytes, name: str) -> bytes | None:
