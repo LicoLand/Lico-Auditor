@@ -749,6 +749,7 @@ class RepositoryPolicy:
     declarations: tuple[RepositoryJsonDeclaration, ...] = ()
     public_reference_domains: frozenset[str] = frozenset()
     reviewed_schema_history: tuple[SchemaHistoryDeclaration, ...] = ()
+    reviewed_unix_path_literals: tuple[dict[str, str], ...] = ()
 
     def declaration_for(self, relative_path: str) -> RepositoryJsonDeclaration | None:
         normalized = normalized_repo_path(relative_path)
@@ -1033,9 +1034,9 @@ def parse_repository_policy(raw):
         return _invalid_repository_policy("Repository policy must be a JSON object.")
     keys = {str(key) for key in data}
     required = {"schemaVersion", "allowedJsonPaths", "publicReferenceDomains"}
-    if not required <= keys or keys - required - {"reviewedSchemaHistory"}:
+    if not required <= keys or keys - required - {"reviewedSchemaHistory", "reviewedUnixPathLiterals"}:
         return _invalid_repository_policy(
-            "Repository policy requires schemaVersion, allowedJsonPaths and publicReferenceDomains; only reviewedSchemaHistory is optional."
+            "Repository policy requires schemaVersion, allowedJsonPaths and publicReferenceDomains; reviewedSchemaHistory and reviewedUnixPathLiterals are optional."
         )
     if type(data["schemaVersion"]) is not int or data["schemaVersion"] != REPOSITORY_POLICY_SCHEMA_VERSION:
         return _invalid_repository_policy(
@@ -1103,6 +1104,36 @@ def parse_repository_policy(raw):
             )
         domains.add(domain)
 
+    literals = data.get("reviewedUnixPathLiterals", [])
+    if not isinstance(literals, list) or len(literals) > REPOSITORY_POLICY_MAX_DECLARATIONS:
+        return _invalid_repository_policy("reviewedUnixPathLiterals must be a bounded list.")
+    seen_literals = set()
+    for item in literals:
+        if not isinstance(item, dict) or set(item) != {"rule", "path", "value", "reason"}:
+            return _invalid_repository_policy("Reviewed path literals require rule, path, value and reason.")
+        if any(not isinstance(value, str) for value in item.values()):
+            return _invalid_repository_policy("Reviewed path literal fields must be strings.")
+        if item["rule"] not in {
+            "developer-macos-home-path", "developer-linux-home-path", "system-or-deployment-path",
+        }:
+            return _invalid_repository_policy("Only Unix path rules support reviewed path literals.")
+        path = item["path"]
+        value = item["value"]
+        if (not path or path.startswith((".", "/")) or "\\" in path
+                or any(part in {"", ".", ".."} for part in path.split("/"))
+                or any(char in path for char in "*?[]")
+                or any(ord(char) < 32 for char in path)):
+            return _invalid_repository_policy("Reviewed path literal owners must be exact repository-relative paths.")
+        if (not value.startswith("/") or len(value) > 2048
+                or any(char in value for char in "\\\"'`")
+                or any(ord(char) < 32 for char in value)
+                or not item["reason"].strip() or len(item["reason"]) > 1024):
+            return _invalid_repository_policy("Reviewed path literals require a complete single-line path and bounded reason.")
+        key = (item["rule"], path, value)
+        if key in seen_literals:
+            return _invalid_repository_policy("Reviewed path literal declarations must be unique.")
+        seen_literals.add(key)
+
     try:
         history = parse_schema_history(data.get("reviewedSchemaHistory", []))
     except ValueError as error:
@@ -1112,6 +1143,7 @@ def parse_repository_policy(raw):
         declarations=tuple(declarations),
         public_reference_domains=frozenset(domains),
         reviewed_schema_history=history,
+        reviewed_unix_path_literals=tuple(literals),
     ), None
 
 

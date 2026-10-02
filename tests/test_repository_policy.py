@@ -11,7 +11,7 @@ from lico_auditor.privacy_rules import (
     REPOSITORY_POLICY_MAX_DOMAINS,
     parse_repository_policy,
 )
-from lico_auditor.scanner import scan_history, scan_worktree
+from lico_auditor.scanner import scan_history, scan_text, scan_worktree
 
 
 def run_git(root: Path, *args: str) -> None:
@@ -48,6 +48,70 @@ def policy_bytes(declarations: list[dict[str, str]], domains: list[str] | None =
 
 
 class RepositoryPolicyTests(unittest.TestCase):
+    def literal_policy(self, **changes):
+        entry = {"rule": "developer-macos-home-path", "path": "tools/refusal.mjs",
+                 "value": "/Users/maintainer/Library/Application Support/LicoUp",
+                 "reason": "Constructed refusal-test input; no user data."}
+        entry.update(changes)
+        return {"schemaVersion": 1, "allowedJsonPaths": [], "publicReferenceDomains": [],
+                "reviewedUnixPathLiterals": [entry]}
+
+    def test_exact_path_literal_keeps_other_paths_rules_and_policy_prose_visible(self):
+        data = self.literal_policy()
+        policy, error = parse_repository_policy(json.dumps(data).encode())
+        self.assertIsNone(error)
+        value = data["reviewedUnixPathLiterals"][0]["value"]
+        source = f'const fixture = "{value}";'
+        self.assertEqual(scan_text("tools/refusal.mjs", source, repository_policy=policy), [])
+        self.assertEqual(scan_text(".lico-auditor/policy.json", json.dumps(data), repository_policy=policy), [])
+        for other in [value + "/child", value + ".extra", value.replace("maintainer", "another-account"),
+                      value.replace("LicoUp", "Sibling")]:
+            with self.subTest(other=other):
+                self.assertTrue(scan_text("tools/refusal.mjs", f'const x = "{other}";', repository_policy=policy))
+        self.assertTrue(scan_text("tools/other.mjs", source, repository_policy=policy))
+        self.assertTrue(scan_text("tools/refusal.mjs", value, repository_policy=policy))
+        self.assertTrue(scan_text("tools/refusal.mjs", f'const x = "prefix{value}";', repository_policy=policy))
+        self.assertTrue(scan_text(".lico-auditor/policy.json", f'{{"reason":"{value}"}}', repository_policy=policy))
+        secret = 'password="' + "L9v_2Qx!pR7z-M4n$T8b@Y6c" + '"'
+        self.assertIn("secret-assignment", {f.rule for f in scan_text("tools/refusal.mjs", source + secret, repository_policy=policy)})
+
+    def test_exact_path_literal_policy_rejects_broad_or_invalid_admissions(self):
+        for changes in [{"rule": "secret-assignment"}, {"path": "tools/*"}, {"path": "../refusal.mjs"},
+                        {"path": "/tools/refusal.mjs"}, {"path": "tools//refusal.mjs"},
+                        {"value": "relative/path"}, {"value": "/tmp/root" + chr(10)},
+                        {"reason": ""}, {"extra": "unsupported"}]:
+            with self.subTest(changes=changes):
+                self.assertIsNotNone(parse_repository_policy(json.dumps(self.literal_policy(**changes)).encode())[1])
+        data = self.literal_policy()
+        data["reviewedUnixPathLiterals"] *= 2
+        self.assertIsNotNone(parse_repository_policy(json.dumps(data).encode())[1])
+
+    def test_exact_path_literals_apply_to_worktree_and_selected_history(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            run_git(root, "init", "-q")
+            run_git(root, "config", "user.name", "Example Maintainer")
+            run_git(root, "config", "user.email", "maintainer@example.invalid")
+            data = self.literal_policy()
+            write_policy(root, data)
+            target = root / "tools/refusal.mjs"
+            target.parent.mkdir()
+            value = data["reviewedUnixPathLiterals"][0]["value"]
+            target.write_text(f'export const path = "{value}";')
+            run_git(root, "add", ".")
+            run_git(root, "commit", "-qm", "test: add reviewed refusal fixture")
+            self.assertFalse(scan_worktree(root, profile="common"))
+            self.assertFalse(scan_history(root, ref="HEAD", profile="common"))
+            result = subprocess.run([str(Path(__file__).resolve().parents[1] / "bin/lico-auditor"),
+                                     "gate", "--repo", str(root), "--profile", "common", "--no-contribution",
+                                     "--format", "json"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            target.write_text(f'export const path = "{value}/child";')
+            result = subprocess.run([str(Path(__file__).resolve().parents[1] / "bin/lico-auditor"),
+                                     "gate", "--repo", str(root), "--profile", "common", "--no-contribution",
+                                     "--format", "json"], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+
     def test_declared_config_json_is_admitted_without_central_whitelist(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

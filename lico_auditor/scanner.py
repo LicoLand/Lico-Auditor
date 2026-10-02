@@ -101,6 +101,28 @@ def mask_svg_path_data(relative_path: str, text: str) -> str:
     return SVG_PATH_DATA_ATTR_PATTERN.sub(mask, text)
 
 
+def is_reviewed_unix_path_literal(relative_path, text, match, rule, policy):
+    """Admit an exact quoted public fixture, never a prefix or an entire file."""
+    if policy is None:
+        return False
+    for item in policy.reviewed_unix_path_literals:
+        if item["rule"] != rule or not item["value"].startswith(match.group(0)):
+            continue
+        start = match.start()
+        end = start + len(item["value"])
+        if start == 0 or text[start - 1] not in "\"'`":
+            continue
+        if text[start:end] != item["value"] or text[end:end + 1] != text[start - 1]:
+            continue
+        if relative_path == item["path"]:
+            return True
+        # The declaration itself is reviewed only in its strict JSON value field.
+        # Other policy prose, fields and additional values retain normal scanning.
+        if relative_path == ".lico-auditor/policy.json" and re.search(r'"value"\s*:\s*"$', text[:start]):
+            return True
+    return False
+
+
 def scan_text(
     relative_path: str,
     text: str,
@@ -136,6 +158,8 @@ def scan_text(
                     repository_policy,
                 )
             ):
+                continue
+            if is_reviewed_unix_path_literal(relative_path, text, match, rule.rule_id, repository_policy):
                 continue
             line, column = line_column(text, match.start())
             match_severity = severity
