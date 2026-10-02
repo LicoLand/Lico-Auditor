@@ -509,6 +509,7 @@ PUBLIC_SOURCE_REFERENCE_HOSTS = {
     "dev.opencode.ai",
     "developer.apple.com",
     "developers.openai.com",
+    "dl.google.com",
     "dl.rockylinux.org",
     "docs.anthropic.com",
     "docs.cursor.com",

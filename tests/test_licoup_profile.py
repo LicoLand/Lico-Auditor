@@ -151,6 +151,17 @@ class LicoupDomainPolicyTests(unittest.TestCase):
             scan_text("tools/scripts/client-cli-vm/verify/bootstrap.mjs", bootstrap_line),
             [],
         )
+        android_line = (
+            'const url = "https://dl.google.com/android/repository/'
+            'commandlinetools-linux-11076708_latest.zip";'
+        )
+        self.assertEqual(
+            scan_text("tools/scripts/client-android-sdk-bootstrap.mjs", android_line),
+            [],
+        )
+        self.assertTrue(
+            scan_text("deployment/client-bootstrap.env", android_line),
+        )
 
     def test_client_vendor_sources_and_public_api_origins_are_allowed(self) -> None:
         lines = (
